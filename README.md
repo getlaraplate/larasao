@@ -75,11 +75,11 @@ Configuration file: `Modules/SAO/config/config.php`.
 Runtime tunables are Settings (module `SAO`, group `sao`), edited like any other Setting and applied
 without a restart. The seeder (`SAODatabaseSeeder`) creates them with the defaults below and a
 re-seed keeps any value an operator changed. Windows, thresholds and the regression factor are
-floored at 1 where they are read, so a stored `0` behaves as `1`.
+floored at 1 where they are read, so a stored `0` behaves as `1`; the one exception is the occurrence cap, where `0` or a negative value disables the cap.
 
 | Setting | Default | Purpose |
 |---------|---------|---------|
-| `signals.max_occurrences_per_window` | `1000` | Per-group occurrence cap within the rolling window (loop protection, layer 2). |
+| `signals.max_occurrences_per_window` | `1000` | Per-group occurrence cap within the rolling window (loop protection, layer 2); `0` or a negative value disables the cap. |
 | `signals.window_minutes` | `60` | Length of that rolling window, in minutes. |
 | `signals.auto_open.enabled` | `false` | Whether `sao:signals:auto-open` is registered on the scheduler (read when a console process boots). The command is always runnable manually. |
 | `signals.auto_open.min_occurrences` | `1` | Minimum occurrences before a signal auto-opens a ticket. |

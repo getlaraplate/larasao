@@ -77,17 +77,22 @@ it('stops recording occurrences past the stored cap inside the stored window', f
         ->and($signal->occurrences()->count())->toBe(3);
 });
 
-it('reads a stored zero occurrence cap as one', function (): void {
-    sao_store_setting('signals.max_occurrences_per_window', 0);
+it('never limits occurrences when the stored cap is zero or negative', function (int $storedCap): void {
+    sao_store_setting('signals.max_occurrences_per_window', $storedCap);
 
     $project = Project::factory()->create();
     $service = app(SignalIngestService::class);
 
-    $service->ingest($project, sao_signal_payload());
-    $signal = $service->ingest($project, sao_signal_payload());
+    foreach (range(1, 4) as $ignored) {
+        $signal = $service->ingest($project, sao_signal_payload());
+    }
 
-    expect($signal->occurrences()->count())->toBe(1);
-});
+    expect($signal->fresh()->occurrence_count)->toBe(4)
+        ->and($signal->occurrences()->count())->toBe(4);
+})->with([
+    'zero' => [0],
+    'negative' => [-3],
+]);
 
 it('reads a stored zero window as one minute', function (): void {
     sao_store_setting('signals.max_occurrences_per_window', 1);
