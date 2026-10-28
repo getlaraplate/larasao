@@ -72,23 +72,31 @@ php artisan module:install SAO
 The module configuration is automatically mapped as `sao.*` when the module is active.
 Configuration file: `Modules/SAO/config/config.php`.
 
+Runtime tunables are Settings (module `SAO`, group `sao`), edited like any other Setting and applied
+without a restart. The seeder (`SAODatabaseSeeder`) creates them with the defaults below and a
+re-seed keeps any value an operator changed. Windows, thresholds and the regression factor are
+floored at 1 where they are read, so a stored `0` behaves as `1`.
+
+| Setting | Default | Purpose |
+|---------|---------|---------|
+| `signals.max_occurrences_per_window` | `1000` | Per-group occurrence cap within the rolling window (loop protection, layer 2). |
+| `signals.window_minutes` | `60` | Length of that rolling window, in minutes. |
+| `signals.auto_open.enabled` | `false` | Whether `sao:signals:auto-open` is registered on the scheduler (read when a console process boots). The command is always runnable manually. |
+| `signals.auto_open.min_occurrences` | `1` | Minimum occurrences before a signal auto-opens a ticket. |
+| `release_health.window_days` | `7` | How many days after a release its signals are attributed to it when judging release health. |
+| `release_health.regression_rate_factor` | `1.5` | A pre-existing signal counts as regressed only when its in-window count exceeds its baseline count by this factor (minimum `1.0`). |
+| `release_health.regression_min_occurrences` | `3` | Minimum in-window occurrences before a pre-existing signal can be flagged as regressed (noise floor). |
+| `release_health.regressed_new_signals` | `3` | Number of brand-new signals in the window that on their own tip the verdict to `regressed`. |
+| `closure.auto_close.enabled` | `false` | When on, `sao:closure:run` lets a satisfied `close` policy actually close the ticket; when off it only proposes (records a `ClosureAudit`, no state change). |
+
 Environment variables (all optional; the defaults are production-safe):
 
 | Variable | Default | Purpose |
 |----------|---------|---------|
-| `SAO_SIGNAL_MAX_OCCURRENCES` | `1000` | Per-group occurrence cap within the rolling window (loop protection, layer 2). |
-| `SAO_SIGNAL_WINDOW_MINUTES` | `60` | Length of that rolling window, in minutes. |
-| `SAO_SIGNAL_AUTO_OPEN` | `false` | Whether `sao:signals:auto-open` is registered on the scheduler. The command is always runnable manually. |
-| `SAO_SIGNAL_AUTO_OPEN_MIN` | `1` | Minimum occurrences before a signal auto-opens a ticket. |
 | `SAO_SYNC_ENABLED` | `true` | Whether `sao:sync:issues` is registered on the scheduler. Set `false` to keep inbound polling manual-only. |
 | `SAO_SYNC_CRON` | `0 * * * *` | Cron expression for the scheduled inbound issue poll. |
 | `SAO_HEALTH_SCHEDULE` | `false` | Whether `sao:connection:health` runs on the scheduler. The command is always runnable manually. |
 | `SAO_HEALTH_CRON` | `*/15 * * * *` | Cron expression for the scheduled connection health probe. |
-| `SAO_RELEASE_HEALTH_WINDOW_DAYS` | `7` | How many days after a release its signals are attributed to it when judging release health. |
-| `SAO_RELEASE_HEALTH_REGRESSION_FACTOR` | `1.5` | A pre-existing signal counts as regressed only when its in-window count exceeds its baseline count by this factor. |
-| `SAO_RELEASE_HEALTH_REGRESSION_MIN` | `3` | Minimum in-window occurrences before a pre-existing signal can be flagged as regressed (noise floor). |
-| `SAO_RELEASE_HEALTH_REGRESSED_NEW_SIGNALS` | `3` | Number of brand-new signals in the window that on their own tip the verdict to `regressed`. |
-| `SAO_CLOSURE_AUTO_CLOSE` | `false` | When `true`, `sao:closure:run` lets a satisfied `close` policy actually close the ticket; when `false` it only proposes (records a `ClosureAudit`, no state change). |
 | `SAO_RETENTION_SCHEDULE` | `false` | Whether `sao:prune` runs on the scheduler. The command is always runnable manually (with `--dry-run`). |
 | `SAO_RETENTION_CRON` | `0 3 * * *` | Cron expression for the scheduled prune. |
 | `SAO_RETENTION_OCCURRENCES_DAYS` | `90` | Delete signal occurrences older than this many days (the signal and its counters are kept). |
@@ -124,8 +132,8 @@ Two transports feed the same writer:
   HMAC-verified, only *merged* PRs count).
 
 `php artisan sao:closure:run {project?} {--env=}` evaluates active closure policies
-over non-terminal tickets. By default it only **proposes** a close; set
-`SAO_CLOSURE_AUTO_CLOSE=true` to let a satisfied `close` policy actually close the
+over non-terminal tickets. By default it only **proposes** a close; turn the
+`closure.auto_close.enabled` Setting on to let a satisfied `close` policy actually close the
 ticket (through `WorkflowService`, audited and auto-reversible on recurrence).
 
 ## Migrating from an external tracker

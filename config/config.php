@@ -20,16 +20,16 @@ return [
     // of the loop protection, so a fast-looping error inside an observed app
     // cannot flood the store.
     'signals' => [
-        'max_occurrences_per_window' => (int) env('SAO_SIGNAL_MAX_OCCURRENCES', 1000),
-        'window_minutes' => (int) env('SAO_SIGNAL_WINDOW_MINUTES', 60),
+        'max_occurrences_per_window' => 1000,
+        'window_minutes' => 60,
 
         // Automatic ticket opening from error signals (sao:signals:auto-open).
         // Opt-in: a signal opens a ticket once it reaches `min_occurrences` and
         // has none linked yet. The command is always runnable; only its
         // scheduled registration is gated by `enabled`.
         'auto_open' => [
-            'enabled' => (bool) env('SAO_SIGNAL_AUTO_OPEN', false),
-            'min_occurrences' => (int) env('SAO_SIGNAL_AUTO_OPEN_MIN', 1),
+            'enabled' => false,
+            'min_occurrences' => 1,
         ],
     ],
 
@@ -59,10 +59,10 @@ return [
     // any signal regresses or at least `regressed_new_signals` brand-new group
     // keys appear inside the window.
     'release_health' => [
-        'window_days' => (int) env('SAO_RELEASE_HEALTH_WINDOW_DAYS', 7),
-        'regression_rate_factor' => (float) env('SAO_RELEASE_HEALTH_REGRESSION_FACTOR', 1.5),
-        'regression_min_occurrences' => (int) env('SAO_RELEASE_HEALTH_REGRESSION_MIN', 3),
-        'regressed_new_signals' => (int) env('SAO_RELEASE_HEALTH_REGRESSED_NEW_SIGNALS', 3),
+        'window_days' => 7,
+        'regression_rate_factor' => 1.5,
+        'regression_min_occurrences' => 3,
+        'regressed_new_signals' => 3,
     ],
 
     // Code-to-work attribution (CodeReferenceWriter / TicketReferenceExtractor).
@@ -92,7 +92,7 @@ return [
     // prudent `propose` default regardless.
     'closure' => [
         'auto_close' => [
-            'enabled' => (bool) env('SAO_CLOSURE_AUTO_CLOSE', false),
+            'enabled' => false,
         ],
     ],
 

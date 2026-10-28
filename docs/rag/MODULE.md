@@ -64,7 +64,21 @@ php artisan module:install SAO
 The module configuration is automatically mapped as `sao.*` when the module is active.
 Configuration file: `Modules/SAO/config/config.php`.
 
-> The effective set of environment variables will be introduced with the first domain phase.
+Runtime tunables are Settings of module `SAO` (group `sao`), seeded by `SAODatabaseSeeder` and
+overlaid onto `config('sao.*')`; an operator's value survives a re-seed. Windows, thresholds and
+the regression factor read as at least `1` (`1.0` for the factor), so a stored `0` behaves as `1`.
+
+| Setting | Default | Purpose |
+|---------|---------|---------|
+| `signals.max_occurrences_per_window` | `1000` | Per-group occurrence cap within the rolling window. |
+| `signals.window_minutes` | `60` | Length of that rolling window, in minutes. |
+| `signals.auto_open.enabled` | `false` | Registers `sao:signals:auto-open` on the scheduler (read at console boot). |
+| `signals.auto_open.min_occurrences` | `1` | Occurrences a signal needs before it opens a ticket. |
+| `release_health.window_days` | `7` | Days after a release whose signals are attributed to it. |
+| `release_health.regression_rate_factor` | `1.5` | Factor over the baseline count that marks a signal as regressed. |
+| `release_health.regression_min_occurrences` | `3` | In-window occurrences needed before a signal can be regressed. |
+| `release_health.regressed_new_signals` | `3` | New signals in the window that tip the verdict to `regressed`. |
+| `closure.auto_close.enabled` | `false` | Lets a satisfied `close` policy close the ticket instead of only proposing it. |
 
 ## Current Status
 
