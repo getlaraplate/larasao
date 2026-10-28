@@ -35,7 +35,7 @@ final class ReleaseHealthService
             return ReleaseHealth::unknown();
         }
 
-        $window ??= CarbonInterval::days((int) config('sao.release_health.window_days', 7));
+        $window ??= CarbonInterval::days(max(1, (int) config('sao.release_health.window_days', 7)));
         $windowStart = $anchor->copy();
         $fullEnd = $windowStart->copy()->add($window);
         $windowEnd = now()->lessThan($fullEnd) ? now() : $fullEnd;
@@ -181,8 +181,8 @@ final class ReleaseHealthService
             return [];
         }
 
-        $factor = (float) config('sao.release_health.regression_rate_factor', 1.5);
-        $minOccurrences = (int) config('sao.release_health.regression_min_occurrences', 3);
+        $factor = max(1.0, (float) config('sao.release_health.regression_rate_factor', 1.5));
+        $minOccurrences = max(1, (int) config('sao.release_health.regression_min_occurrences', 3));
 
         return $signals
             ->filter(function (Signal $signal) use ($windowStart, $baselineCounts, $factor, $minOccurrences): bool {
@@ -212,7 +212,7 @@ final class ReleaseHealthService
             return ReleaseHealthVerdict::Unknown;
         }
 
-        $regressedNewThreshold = (int) config('sao.release_health.regressed_new_signals', 3);
+        $regressedNewThreshold = max(1, (int) config('sao.release_health.regressed_new_signals', 3));
 
         return match (true) {
             $regressedSignals !== [] || $regressedNewThreshold <= count($newSignals) => ReleaseHealthVerdict::Regressed,

@@ -81,12 +81,8 @@ final readonly class SignalIngestService
 
     private function rateLimitReached(Signal $signal): bool
     {
-        $max = (int) config('sao.signals.max_occurrences_per_window', 1000);
-        $windowMinutes = (int) config('sao.signals.window_minutes', 60);
-
-        if ($max <= 0) {
-            return false;
-        }
+        $max = max(1, (int) config('sao.signals.max_occurrences_per_window', 1000));
+        $windowMinutes = max(1, (int) config('sao.signals.window_minutes', 60));
 
         $recent = $signal->occurrences()
             ->where('occurred_at', '>=', now()->subMinutes($windowMinutes))
