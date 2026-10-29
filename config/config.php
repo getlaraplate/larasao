@@ -146,6 +146,7 @@ return [
             Modules\SAO\Drivers\External\GitHubDeploymentDriver::class,
             Modules\SAO\Drivers\External\WebhookCodeDriver::class,
             Modules\SAO\Drivers\External\GitHubPullRequestDriver::class,
+            Modules\SAO\Drivers\External\HttpVersionDriver::class,
         ],
     ],
 ];

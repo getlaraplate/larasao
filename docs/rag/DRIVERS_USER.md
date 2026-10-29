@@ -9,7 +9,7 @@ SAO is a complete standalone tracker on its own. Connecting it to external syste
 
 ## What exists today
 
-The connection framework and a set of bundled connectors are available. SAO ships drivers for issue trackers (Redmine, Jira, YouTrack, Linear, Azure DevOps, Gitea), code hosts that also serve issues and releases (GitHub, GitLab, Bitbucket), log and error sources (Sentry, Graylog, GlitchTip, Rollbar, Bugsnag, Honeybadger, Grafana, Datadog, Elastic, Better Stack), and deployment and code-event sources (webhook and GitHub drivers). None of them is required: with no connection configured SAO works as a self-contained ticketing system, exactly as before.
+The connection framework and a set of bundled connectors are available. SAO ships drivers for issue trackers (Redmine, Jira, YouTrack, Linear, Azure DevOps, Gitea), code hosts that also serve issues and releases (GitHub, GitLab, Bitbucket), log and error sources (Sentry, Graylog, GlitchTip, Rollbar, Bugsnag, Honeybadger, Grafana, Datadog, Elastic, Better Stack), deployment and code-event sources (webhook and GitHub drivers), and a version probe (`http-version`) that asks a running application which version it serves. None of them is required: with no connection configured SAO works as a self-contained ticketing system, exactly as before.
 
 ## How connections work
 
@@ -34,3 +34,27 @@ When a log or error source pushes events to SAO, each event is matched to **one*
 A connection with no log binding to any project cannot route events at all: its events are recorded as **Discarded**, with the reason `no-logs-binding`. When a connection serves several projects, an event is never copied to all of them: it needs a rule. Rules and the project key only route to projects bound to the receiving connection.
 
 Graylog sends the source of the message as the server host and reads the request host from the `application_url` field of the message, so for Graylog these are the values to build rules on. When no rule and no payload sets an environment, the server host is used as the environment name.
+
+## Asking an environment which version it runs
+
+The `http-version` connector is the active way to keep an environment's running version up to date: instead of waiting for a deploy notification, SAO reads the version from the application itself. It adds the **probe** capability. Create a connection with the `http-version` driver, enable the `probe` capability, and bind it to each project with a `probe` binding.
+
+What is requested is always the **address set on the environment** (its base URL), plus a path. Nothing else is ever fetched: an address found inside an event or any other payload is ignored, so an event cannot make SAO call an arbitrary host.
+
+Settings go in the binding's config (JSON), so one connection serves projects that expose the endpoint at different places:
+
+- `path`: where the version is served, relative to the environment base URL. Default `/version`.
+- `version_path`: where the version sits in the JSON answer, as a dot path (`app.version`). Default `version`.
+- `commit_path` and `branch_path`: optional dot paths for the commit and the branch. When missing, or not text, the commit and branch are simply not updated.
+- `timeout`: seconds to wait for the answer. Default 5, minimum 1.
+
+The connection's optional **auth header** credential is stored encrypted like any other secret and is written as `Name: value` (for example `X-Probe-Token: abc123`). It is checked before any request goes out; a header without a colon, with an empty or invalid name, or with line breaks is refused and nothing is sent. Its value never appears in a message or a log.
+
+Security rules, all enforced by the driver:
+
+- Only `http` and `https` base URLs with a host are accepted; an empty one, any other scheme, or one with a user name or password embedded is refused without a request.
+- Redirects are never followed: an answer in the 3xx range counts as a failure.
+- The answer must be a JSON object. HTML, a bare number or text, a list, or an object without a usable version at `version_path` is a failure. A usable version is non-empty text or a whole number; a decimal (which would lose a trailing zero), a true/false value or a nested structure is not.
+- The **test** button of the connection makes no request, because the probed address belongs to each environment; it only reports a malformed auth header or a connection address that is not http or https.
+
+A failed probe changes nothing: the environment keeps what it had and, as without a probe, becomes stale once its version has not been seen for long enough. The reason (for example "The endpoint answered HTTP 404." or "The request failed or timed out.") is reported for that environment alone.
