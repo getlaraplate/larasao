@@ -41,18 +41,18 @@ The `http-version` connector is the active way to keep an environment's running 
 
 What is requested is always the **address set on the environment** (its base URL), plus a path. Nothing else is ever fetched: an address found inside an event or any other payload is ignored, so an event cannot make SAO call an arbitrary host.
 
-Settings go in the binding's config (JSON), so one connection serves projects that expose the endpoint at different places:
+Settings are set once in the connection's **config**, and a project's `probe` binding may override any of them in its own config (JSON), so one connection serves projects that expose the endpoint at different places (typically a different `path`):
 
 - `path`: where the version is served, relative to the environment base URL. Default `/version`.
 - `version_path`: where the version sits in the JSON answer, as a dot path (`app.version`). Default `version`.
 - `commit_path` and `branch_path`: optional dot paths for the commit and the branch. When missing, or not text, the commit and branch are simply not updated.
 - `timeout`: seconds to wait for the answer. Default 5, minimum 1.
 
-The connection's optional **auth header** credential is stored encrypted like any other secret and is written as `Name: value` (for example `X-Probe-Token: abc123`). It is checked before any request goes out; a header without a colon, with an empty or invalid name, or with line breaks is refused and nothing is sent. Its value never appears in a message or a log.
+The connection's optional **auth header** credential (a connection-only secret, not overridable per binding) is stored encrypted like any other secret and is written as `Name: value` (for example `X-Probe-Token: abc123`). It is checked before any request goes out; a header without a colon, with an empty or invalid name, or with line breaks is refused and nothing is sent. Its value never appears in a message or a log.
 
 Security rules, all enforced by the driver:
 
-- Only `http` and `https` base URLs with a host are accepted; an empty one, any other scheme, or one with a user name or password embedded is refused without a request.
+- Only `http` and `https` base URLs with a host are accepted; an empty one, any other scheme, one with whitespace in it, one that is not a valid URL, or one with a user name or password embedded is refused without a request.
 - Redirects are never followed: an answer in the 3xx range counts as a failure.
 - The answer must be a JSON object. HTML, a bare number or text, a list, or an object without a usable version at `version_path` is a failure. A usable version is non-empty text or a whole number; a decimal (which would lose a trailing zero), a true/false value or a nested structure is not.
 - The **test** button of the connection makes no request, because the probed address belongs to each environment; it only reports a malformed auth header or a connection address that is not http or https.

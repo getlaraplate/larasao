@@ -66,7 +66,19 @@ test('a connection builds a connection context from resolved credentials', funct
     $context = $connection->connectionContext(['token' => 'abc']);
 
     expect($context->baseUrl)->toBe('https://tracker.test')
-        ->and($context->credentials)->toBe(['token' => 'abc']);
+        ->and($context->credentials)->toBe(['token' => 'abc'])
+        ->and($context->config)->toBe([]);
+});
+
+test('the connection context carries the connection config', function (): void {
+    $connection = Connection::factory()->create([
+        'driver_key' => 'fake',
+        'base_url' => 'https://tracker.test',
+        'capabilities' => [Capability::Issues],
+        'config' => ['path' => '/status'],
+    ]);
+
+    expect($connection->connectionContext([])->config)->toBe(['path' => '/status']);
 });
 
 test('a connection resolves its driver from the registry', function (): void {

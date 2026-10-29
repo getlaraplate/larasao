@@ -6,6 +6,7 @@ namespace Modules\SAO\Drivers\External;
 
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
+use InvalidArgumentException;
 use Modules\SAO\Drivers\Contracts\DriverInterface;
 use Modules\SAO\Drivers\Contracts\VersionProbeCapability;
 use Modules\SAO\Drivers\Support\BindingContext;
@@ -30,7 +31,8 @@ use Override;
  * or https, redirects are not followed (a 3xx is a failure), the timeout is
  * bounded, and the optional `auth_header` credential is validated before any
  * request and never echoed. Non-secret settings (`path`, the dot-paths and the
- * `timeout`) are read from the binding's config, like the other drivers do.
+ * `timeout`) come from the connection's config, and a binding's config overrides
+ * any of them.
  */
 final readonly class HttpVersionDriver implements DriverInterface, VersionProbeCapability
 {
@@ -110,10 +112,11 @@ final readonly class HttpVersionDriver implements DriverInterface, VersionProbeC
     #[Override]
     public function probe(BindingContext $context, Environment $environment): ?ProbedVersion
     {
-        $url = $this->url($environment, self::stringOr($context->config['path'] ?? null, self::DEFAULT_PATH));
+        $settings = $this->settings($context);
+        $url = $this->url($environment, self::stringOr($settings['path'] ?? null, self::DEFAULT_PATH));
         $header = $this->authHeader($context->connection);
 
-        $request = Http::timeout($this->timeout($context))->withoutRedirecting()->acceptJson();
+        $request = Http::timeout($this->timeout($settings))->withoutRedirecting()->acceptJson();
 
         if ($header !== null) {
             $request = $request->withHeaders($header);
@@ -123,6 +126,9 @@ final readonly class HttpVersionDriver implements DriverInterface, VersionProbeC
             $response = $request->get($url);
         } catch (ConnectionException) {
             throw ProbeException::unreachable();
+        } catch (InvalidArgumentException) {
+            // Guzzle refuses a URL it cannot parse; that is a bad environment address.
+            throw ProbeException::invalidBaseUrl('it is not a valid URL');
         }
 
         if (! $response->successful()) {
@@ -135,7 +141,7 @@ final readonly class HttpVersionDriver implements DriverInterface, VersionProbeC
             throw ProbeException::notJsonObject();
         }
 
-        $versionPath = self::stringOr($context->config['version_path'] ?? null, self::DEFAULT_VERSION_PATH);
+        $versionPath = self::stringOr($settings['version_path'] ?? null, self::DEFAULT_VERSION_PATH);
         $version = $this->version(data_get($payload, $versionPath));
 
         if ($version === null) {
@@ -144,8 +150,8 @@ final readonly class HttpVersionDriver implements DriverInterface, VersionProbeC
 
         return new ProbedVersion(
             $version,
-            $this->optionalString($payload, $context->config['commit_path'] ?? null),
-            $this->optionalString($payload, $context->config['branch_path'] ?? null),
+            $this->optionalString($payload, $settings['commit_path'] ?? null),
+            $this->optionalString($payload, $settings['branch_path'] ?? null),
         );
     }
 
@@ -161,6 +167,10 @@ final readonly class HttpVersionDriver implements DriverInterface, VersionProbeC
 
         if ($baseUrl === '') {
             throw ProbeException::invalidBaseUrl('it is empty');
+        }
+
+        if (preg_match('/[\s\x00-\x1f\x7f]/', $baseUrl) === 1) {
+            throw ProbeException::invalidBaseUrl('it contains whitespace or control characters');
         }
 
         $parts = parse_url($baseUrl);
@@ -208,9 +218,28 @@ final readonly class HttpVersionDriver implements DriverInterface, VersionProbeC
         return [$name => $value];
     }
 
-    private function timeout(BindingContext $context): int
+    /**
+     * The connection's config supplies the defaults; any key the binding sets
+     * (non-empty) overrides it.
+     *
+     * @return array<string, mixed>
+     */
+    private function settings(BindingContext $context): array
     {
-        return max(1, self::intOr($context->config['timeout'] ?? null, self::DEFAULT_TIMEOUT_SECONDS));
+        $overrides = array_filter(
+            $context->config,
+            static fn (mixed $value): bool => $value !== null && $value !== '',
+        );
+
+        return $overrides + $context->connection->config;
+    }
+
+    /**
+     * @param  array<string, mixed>  $settings
+     */
+    private function timeout(array $settings): int
+    {
+        return max(1, self::intOr($settings['timeout'] ?? null, self::DEFAULT_TIMEOUT_SECONDS));
     }
 
     /**

@@ -26,6 +26,18 @@ function probeContext(array $config = [], string $authHeader = ''): BindingConte
     );
 }
 
+/**
+ * @param  array<string, mixed>  $connectionConfig
+ * @param  array<string, mixed>  $bindingConfig
+ */
+function probeContextWithConnectionConfig(array $connectionConfig, array $bindingConfig = []): BindingContext
+{
+    return new BindingContext(
+        new ConnectionContext(baseUrl: null, credentials: [], config: $connectionConfig),
+        config: $bindingConfig,
+    );
+}
+
 function probeEnvironment(?string $baseUrl = 'https://shop.example.com'): Environment
 {
     return new Environment(['name' => 'production', 'base_url' => $baseUrl]);
@@ -191,6 +203,9 @@ test('an empty, non-http or hostless base url is refused without a request', fun
     'no scheme' => ['shop.example.com'],
     'no host' => ['https://'],
     'userinfo' => ['https://user:pass@shop.example.com'],
+    'space in host' => ['https://exa mple.com'],
+    'unterminated ipv6' => ['http://[::1'],
+    'two ports' => ['https://a.b:80:90'],
 ]);
 
 test('a response that is not a JSON object with a version is a failure', function (mixed $body): void {
@@ -219,4 +234,30 @@ test('the health check needs no network and flags a malformed auth header', func
         ->and($driver->healthCheck(new ConnectionContext('ftp://x', []))->healthy)->toBeFalse();
 
     Http::assertNothingSent();
+});
+
+test('connection config supplies the defaults and the binding config overrides any key', function (): void {
+    $urls = [];
+    $timeouts = [];
+    Http::fake(function (Request $request, array $options) use (&$urls, &$timeouts) {
+        $urls[] = $request->url();
+        $timeouts[] = $options['timeout'] ?? null;
+
+        return Http::response(['info' => ['v' => '5.0.0', 'sha' => 'f00', 'ref' => 'main'], 'version' => 'wrong']);
+    });
+
+    $connection = ['path' => '/status', 'version_path' => 'info.v', 'commit_path' => 'info.sha', 'branch_path' => 'info.ref', 'timeout' => 9];
+    $driver = new HttpVersionDriver;
+
+    $fromConnection = $driver->probe(probeContextWithConnectionConfig($connection), probeEnvironment());
+    $overridden = $driver->probe(probeContextWithConnectionConfig($connection, ['path' => '/health', 'timeout' => 2, 'commit_path' => 'nope']), probeEnvironment());
+
+    expect($fromConnection->version)->toBe('5.0.0')
+        ->and($fromConnection->commit)->toBe('f00')
+        ->and($fromConnection->branch)->toBe('main')
+        ->and($overridden->version)->toBe('5.0.0')
+        ->and($overridden->commit)->toBeNull()
+        ->and($overridden->branch)->toBe('main')
+        ->and($urls)->toBe(['https://shop.example.com/status', 'https://shop.example.com/health'])
+        ->and($timeouts)->toBe([9, 2]);
 });
