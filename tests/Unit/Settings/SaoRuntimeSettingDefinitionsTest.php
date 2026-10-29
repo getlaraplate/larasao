@@ -24,6 +24,8 @@ it('defines the tunables that were env variables, with the defaults they had', f
     'signal window' => ['signals.window_minutes', 60, SettingTypeEnum::Integer],
     'auto-open switch' => ['signals.auto_open.enabled', false, SettingTypeEnum::Boolean],
     'auto-open threshold' => ['signals.auto_open.min_occurrences', 1, SettingTypeEnum::Integer],
+    'recurrence comment switch' => ['signals.recurrence_comment.enabled', true, SettingTypeEnum::Boolean],
+    'recurrence comment cooldown' => ['signals.recurrence_comment.cooldown_minutes', 60, SettingTypeEnum::Integer],
     'release health window' => ['release_health.window_days', 7, SettingTypeEnum::Integer],
     'release health regression factor' => ['release_health.regression_rate_factor', 1.5, SettingTypeEnum::Float],
     'release health regression floor' => ['release_health.regression_min_occurrences', 3, SettingTypeEnum::Integer],
@@ -31,6 +33,6 @@ it('defines the tunables that were env variables, with the defaults they had', f
     'auto-close switch' => ['closure.auto_close.enabled', false, SettingTypeEnum::Boolean],
 ]);
 
-it('defines exactly nine settings', function (): void {
-    expect(SAODatabaseSeeder::runtimeSettingDefinitions())->toHaveCount(9);
+it('defines exactly eleven settings', function (): void {
+    expect(SAODatabaseSeeder::runtimeSettingDefinitions())->toHaveCount(11);
 });

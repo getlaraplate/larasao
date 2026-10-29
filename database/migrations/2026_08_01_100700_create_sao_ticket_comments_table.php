@@ -33,7 +33,7 @@ return new class extends Migration
 
             MigrateUtils::prefixIndex($table, 'author_id');
 
-            $table->index(['ticket_id', 'created_at'], "{$table_name}_ticket_created_IDX");
+            $table->index(['ticket_id', 'source_key', 'created_at'], "{$table_name}_ticket_source_created_IDX");
         });
     }
 

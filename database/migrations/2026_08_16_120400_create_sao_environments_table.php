@@ -20,7 +20,10 @@ return new class extends Migration
                 ->constrained(SAOTables::Projects->value, 'id', "{$table_name}_project_FK")
                 ->cascadeOnDelete();
             $table->string('name')->comment('e.g. production, staging');
+            $table->string('base_url', 2048)->nullable()->comment('Operator-set address probed for the running version; http or https');
             $table->string('current_version')->nullable()->comment('The version last seen running');
+            $table->string('current_commit')->nullable()->comment('The commit last seen running');
+            $table->string('current_branch')->nullable()->comment('The branch last seen running');
             $table->timestamp('last_seen_at')->nullable()->comment('When the version was last observed or probed');
 
             MigrateUtils::timestamps($table, hasCreateUpdate: true, hasSoftDelete: true);

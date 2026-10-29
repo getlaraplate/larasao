@@ -5,10 +5,15 @@ declare(strict_types=1);
 namespace Modules\SAO\Ingest;
 
 use Carbon\CarbonInterface;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Modules\SAO\Enums\SignalState;
+use Modules\SAO\Models\Environment;
 use Modules\SAO\Models\Project;
 use Modules\SAO\Models\Signal;
 use Modules\SAO\Models\SignalOccurrence;
+use Modules\SAO\Services\DeployCensusService;
+use Modules\SAO\Services\SignalRecurrenceCommenter;
 use Modules\SAO\Services\VersionCensusService;
 
 /**
@@ -19,12 +24,30 @@ use Modules\SAO\Services\VersionCensusService;
  */
 final readonly class SignalIngestService
 {
+    /**
+     * Attempts of the ingest transaction: the first, and two retries after a deadlock or a lock timeout.
+     */
+    private const int TRANSACTION_ATTEMPTS = 3;
+
     public function __construct(
         private GroupKeyResolver $groupKeyResolver,
         private VersionCensusService $versionCensus,
+        private DeployCensusService $deployCensus,
+        private SignalRecurrenceCommenter $recurrenceCommenter,
     ) {}
 
     /**
+     * Runs in a transaction on the signal's connection with the signal row locked, so two concurrent
+     * occurrences of one group serialize on it: the count is incremented in SQL, and whatever is decided
+     * from the signal's state inside the transaction sees the other occurrence's write.
+     *
+     * The transaction is attempted up to {@see self::TRANSACTION_ATTEMPTS} times: when three or more
+     * ingests create one new signal at once, the losers of the unique key all hold a shared lock on the
+     * winner's row and then ask for the exclusive one, so InnoDB picks a deadlock victim. Laravel retries
+     * the whole attempt on such a concurrency error, and the retry finds the signal and waits on its lock.
+     * Laravel retries only an outermost transaction: nested in another one (reprocessing) the error is
+     * rethrown to that caller.
+     *
      * @param  array<string, mixed>  $payload
      * @param  CarbonInterface|null  $occurredAt  When the error originally happened; defaults to now. A replayed occurrence passes its original time: it widens the seen window both ways but never reopens a resolved signal, since an old event says nothing about the error being back.
      */
@@ -34,35 +57,155 @@ final readonly class SignalIngestService
         $occurredAt ??= now();
         $groupKey = $this->groupKeyResolver->resolve($payload);
 
-        $signal = Signal::query()->firstOrNew([
-            'project_id' => $project->getKey(),
-            'group_key' => $groupKey,
-        ]);
+        return (new Signal)->getConnection()->transaction(
+            fn (): Signal => $this->recordIn($project, $payload, $occurredAt, $isReplay, $groupKey),
+            self::TRANSACTION_ATTEMPTS,
+        );
+    }
 
-        $isNew = ! $signal->exists;
-
-        if ($isNew) {
-            $signal->algo_version = is_numeric($payload['algo_version'] ?? null) ? (int) $payload['algo_version'] : 1;
-            $signal->state = SignalState::Open;
-            $signal->occurrence_count = 0;
-            $signal->first_seen_at = $occurredAt;
-            $signal->last_seen_at = $occurredAt;
-            $signal->save();
-        }
+    /**
+     * The body of one ingest attempt. It reads and builds every model it touches, and changes nothing outside
+     * the transaction, so a retried attempt starts from what the database holds after the rollback. The
+     * recurrence comment it may post is a database write too ({@see SignalRecurrenceCommenter}).
+     *
+     * @param  array<string, mixed>  $payload
+     */
+    private function recordIn(Project $project, array $payload, CarbonInterface $occurredAt, bool $isReplay, string $groupKey): Signal
+    {
+        $signal = $this->existingSignal($project, $groupKey)
+            ?? $this->createSignal($project, $groupKey, $payload, $occurredAt);
 
         // Loop protection, layer 2: past the per-group cap within the window the
         // signal stops recording occurrences, so a fast-looping error cannot
-        // flood the store. The signal itself still exists and stays visible.
-        if (! $isNew && $this->rateLimitReached($signal)) {
+        // flood the store. The signal itself still exists and stays visible. A
+        // signal another ingest created first is an existing one and is checked.
+        if (! $signal->wasRecentlyCreated && $this->rateLimitReached($signal)) {
             return $signal;
         }
 
+        $this->recordOccurrenceOn($signal, $occurredAt, $isReplay);
+
+        $census = $this->versionCensus->record(
+            $project->getKey(),
+            is_string($payload['version'] ?? null) ? $payload['version'] : null,
+        );
+
+        if (! $isReplay) {
+            $this->observeEnvironment($project, $payload);
+        }
+
+        $occurrence = SignalOccurrence::query()->create([
+            'signal_id' => $signal->getKey(),
+            'environment' => is_string($payload['environment'] ?? null) ? $payload['environment'] : null,
+            'context' => is_array($payload['context'] ?? null) ? $payload['context'] : null,
+            'affected_version' => $census->affectedVersion,
+            'affected_release_id' => $census->release?->getKey(),
+            'occurred_at' => $occurredAt,
+        ]);
+
+        // Still inside the transaction and under the signal lock: the cooldown check and the comment are
+        // serialized per signal, and both are plain database writes that a rollback or a retry discards.
+        $this->recurrenceCommenter->afterOccurrence($signal, $occurrence);
+
+        return $signal;
+    }
+
+    /**
+     * Feeds the deploy census from a live occurrence: when the payload names a version and the project
+     * already has an environment of the occurrence's name, that environment is observed running it. An
+     * unknown name creates nothing, so a host name used as the fallback environment never fills the
+     * census. A replayed occurrence carries a historical version and is not fed in. The write is a plain
+     * database update of an existing row, so a retried attempt repeats it harmlessly.
+     *
+     * @param  array<string, mixed>  $payload
+     */
+    private function observeEnvironment(Project $project, array $payload): void
+    {
+        $version = $payload['version'] ?? null;
+        $name = $payload['environment'] ?? null;
+
+        if (! is_string($version) || $version === '' || ! is_string($name) || $name === '') {
+            return;
+        }
+
+        $environment = Environment::query()
+            ->where('project_id', $project->getKey())
+            ->where('name', $name)
+            ->first();
+
+        if (! $environment instanceof Environment) {
+            return;
+        }
+
+        $this->deployCensus->observe(
+            $environment,
+            $version,
+            is_string($payload['commit'] ?? null) && $payload['commit'] !== '' ? $payload['commit'] : null,
+            is_string($payload['branch'] ?? null) && $payload['branch'] !== '' ? $payload['branch'] : null,
+        );
+    }
+
+    /**
+     * Finds the signal with a plain read and only then locks the row it found, by key. A locking read on a
+     * key that may not exist yet would take gap locks on the unique index (InnoDB, REPEATABLE READ), and two
+     * first creations of one group would then deadlock on their inserts instead of one losing the unique key.
+     */
+    private function existingSignal(Project $project, string $groupKey): ?Signal
+    {
+        $signalId = Signal::query()
+            ->where('project_id', $project->getKey())
+            ->where('group_key', $groupKey)
+            ->value('id');
+
+        return $signalId === null ? null : $this->lockedSignalBy(Signal::query()->whereKey($signalId));
+    }
+
+    /**
+     * @param  Builder<Signal>  $query
+     */
+    private function lockedSignalBy(Builder $query): ?Signal
+    {
+        return $query->lockForUpdate()->first();
+    }
+
+    /**
+     * Creates the signal with no occurrence yet. The insert runs in a savepoint: when a concurrent ingest
+     * created the same signal after the lookup, the unique key on (project_id, group_key) refuses this one,
+     * the savepoint is rolled back without aborting the enclosing transaction, and the winner's row is read
+     * under the lock instead.
+     *
+     * @param  array<string, mixed>  $payload
+     */
+    private function createSignal(Project $project, string $groupKey, array $payload, CarbonInterface $occurredAt): Signal
+    {
+        try {
+            return (new Signal)->getConnection()->transaction(static fn (): Signal => Signal::query()->create([
+                'project_id' => $project->getKey(),
+                'group_key' => $groupKey,
+                'algo_version' => is_numeric($payload['algo_version'] ?? null) ? (int) $payload['algo_version'] : 1,
+                'state' => SignalState::Open,
+                'occurrence_count' => 0,
+                'first_seen_at' => $occurredAt,
+                'last_seen_at' => $occurredAt,
+            ]));
+        } catch (UniqueConstraintViolationException $exception) {
+            return $this->lockedSignalBy(
+                Signal::query()->where('project_id', $project->getKey())->where('group_key', $groupKey),
+            ) ?? throw $exception;
+        }
+    }
+
+    /**
+     * Counts one occurrence on the locked signal: the count is incremented in SQL
+     * (`occurrence_count = occurrence_count + 1`) together with the seen window and
+     * a reopen, in one update, and the model is left in sync with the row.
+     */
+    private function recordOccurrenceOn(Signal $signal, CarbonInterface $occurredAt, bool $isReplay): void
+    {
         if ($signal->state === SignalState::Resolved && ! $isReplay) {
             // The error came back: a resolved signal reopens on a live recurrence.
             $signal->state = SignalState::Open;
         }
-
-        $signal->occurrence_count++;
 
         if ($signal->first_seen_at === null || $occurredAt->lessThan($signal->first_seen_at)) {
             $signal->first_seen_at = $occurredAt;
@@ -72,23 +215,13 @@ final readonly class SignalIngestService
             $signal->last_seen_at = $occurredAt;
         }
 
-        $signal->save();
+        if ($signal->usesTimestamps()) {
+            $signal->updateTimestamps();
+        }
 
-        $census = $this->versionCensus->record(
-            $project->getKey(),
-            is_string($payload['version'] ?? null) ? $payload['version'] : null,
-        );
-
-        SignalOccurrence::query()->create([
-            'signal_id' => $signal->getKey(),
-            'environment' => is_string($payload['environment'] ?? null) ? $payload['environment'] : null,
-            'context' => is_array($payload['context'] ?? null) ? $payload['context'] : null,
-            'affected_version' => $census->affectedVersion,
-            'affected_release_id' => $census->release?->getKey(),
-            'occurred_at' => $occurredAt,
-        ]);
-
-        return $signal;
+        $changes = $signal->getDirty();
+        $signal->increment('occurrence_count', 1, $changes);
+        $signal->syncOriginalAttributes(array_keys($changes));
     }
 
     private function rateLimitReached(Signal $signal): bool

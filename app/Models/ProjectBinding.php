@@ -14,6 +14,7 @@ use Modules\SAO\Drivers\Support\ConnectionCredentialResolver;
 use Modules\SAO\Enums\Capability;
 use Modules\SAO\Enums\SAOTables;
 use Modules\SAO\Enums\SyncDirection;
+use Modules\SAO\Exceptions\MissingCredentialException;
 use Modules\SAO\Exceptions\UnsupportedCapabilityException;
 use Override;
 
@@ -77,13 +78,30 @@ final class ProjectBinding extends Model implements IsPartOfParent
      * Build the resolved view a capability call operates on: the connection
      * (base URL + resolved credentials) plus this binding's remote identifier,
      * config and maps.
+     *
+     * With `$credentialOptional`, a connection that holds no secret at all
+     * resolves to an empty credential set instead of failing, for a driver whose
+     * secret is optional (an unauthenticated probe). A connection that names a
+     * `credential_ref` is still required to resolve it.
      */
-    public function bindingContext(ConnectionCredentialResolver $resolver): BindingContext
+    public function bindingContext(ConnectionCredentialResolver $resolver, bool $credentialOptional = false): BindingContext
     {
         $connection = $this->remoteConnection;
 
+        try {
+            $credentials = $resolver->resolve($connection);
+        } catch (MissingCredentialException $exception) {
+            $ref = $connection->credential_ref;
+
+            if (! $credentialOptional || ($ref !== null && $ref !== '')) {
+                throw $exception;
+            }
+
+            $credentials = [];
+        }
+
         return new BindingContext(
-            $connection->connectionContext($resolver->resolve($connection)),
+            $connection->connectionContext($credentials),
             remoteIdentifier: $this->remote_identifier,
             config: $this->config ?? [],
             statusMap: $this->status_map ?? [],

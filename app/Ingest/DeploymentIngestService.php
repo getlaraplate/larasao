@@ -55,7 +55,12 @@ final readonly class DeploymentIngestService
         $deployment->save();
 
         if ($event->status->isSuccessful() && $environment instanceof Environment) {
-            $this->census->observe($environment, $event->version);
+            $this->census->observe(
+                $environment,
+                $event->version,
+                is_string($event->meta['sha'] ?? null) ? $event->meta['sha'] : null,
+                is_string($event->meta['ref'] ?? null) ? $event->meta['ref'] : null,
+            );
         }
 
         event(new DeploymentRecorded($deployment, $isNew));
