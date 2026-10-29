@@ -10,6 +10,7 @@ use Filament\Schemas\Schema;
 use Modules\Core\Models\User;
 use Modules\SAO\Data\TimelineEntry;
 use Modules\SAO\Models\Ticket;
+use Modules\SAO\Services\FixStatusResolver;
 use Modules\SAO\Services\TicketTimelineService;
 
 final class TicketInfolist
@@ -47,6 +48,18 @@ final class TicketInfolist
                 TextEntry::make('deleted_at')
                     ->dateTime()
                     ->visible(fn (Ticket $record): bool => $record->trashed()),
+                TextEntry::make('contained_environments')
+                    ->label(__('sao.fields.contained_environments'))
+                    ->state(static fn (Ticket $record): array => resolve(FixStatusResolver::class)->forTicket($record)->contained_environments)
+                    ->badge()
+                    ->color('success')
+                    ->placeholder('-'),
+                TextEntry::make('not_contained_environments')
+                    ->label(__('sao.fields.not_contained_environments'))
+                    ->state(static fn (Ticket $record): array => resolve(FixStatusResolver::class)->forTicket($record)->not_contained_environments)
+                    ->badge()
+                    ->color('danger')
+                    ->placeholder('-'),
                 ViewEntry::make('timeline')
                     ->view('sao::filament.tickets.timeline')
                     ->state(static fn (Ticket $record): array => self::timeline($record))

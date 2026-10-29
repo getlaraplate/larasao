@@ -22,7 +22,8 @@ use Throwable;
 /**
  * Asks each environment which version it is running and records the answer in
  * the deploy census. Only projects with a `probe` binding are asked, and only
- * their environments that carry an operator-set `base_url`.
+ * their environments that carry an operator-set `base_url`. A binding whose
+ * project was deleted is ignored.
  *
  * One environment never aborts the run: a refused or failed probe is reported
  * and leaves that environment exactly as it was (it simply goes stale through
@@ -60,6 +61,7 @@ final class ProbeCensusCommand extends Command
 
         $bindings = ProjectBinding::query()
             ->with(['remoteConnection', 'project'])
+            ->ofLiveProject()
             ->where('capability', Capability::Probe)
             ->when($scoped, static fn (Builder $query): Builder => $query
                 ->whereHas('project', static fn (Builder $project): Builder => $project->where('key_prefix', $prefix)))
@@ -113,7 +115,7 @@ final class ProbeCensusCommand extends Command
             throw new ProbeException("The driver [{$driver->key()}] cannot probe versions.");
         }
 
-        $probed = $driver->probe($binding->bindingContext($resolver, credentialOptional: true), $environment);
+        $probed = $driver->probe($binding->bindingContext($resolver, $driver), $environment);
 
         if (! $probed instanceof ProbedVersion) {
             throw new ProbeException('The driver returned no version.');

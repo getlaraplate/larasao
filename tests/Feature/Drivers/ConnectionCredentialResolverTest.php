@@ -3,6 +3,8 @@
 declare(strict_types=1);
 
 use Illuminate\Support\Facades\Config;
+use Modules\SAO\Drivers\External\GitHubDriver;
+use Modules\SAO\Drivers\External\HttpVersionDriver;
 use Modules\SAO\Drivers\Support\ConnectionCredentialResolver;
 use Modules\SAO\Enums\Capability;
 use Modules\SAO\Enums\ConnectionHealth;
@@ -66,4 +68,31 @@ test('the resolver does not mutate the connection', function (): void {
 
     expect($connection->credential_ref)->toBe('sao.test_secret')
         ->and($connection->getAttribute('credential'))->toBeNull();
+});
+
+test('for a driver without a required secret a connection holding none resolves to no credentials', function (): void {
+    $connection = unsavedConnection(['credential_ref' => null, 'credential' => null]);
+
+    expect((new ConnectionCredentialResolver)->resolveFor($connection, app(HttpVersionDriver::class)))->toBe([]);
+});
+
+test('for a driver without a required secret a named ref must still resolve', function (): void {
+    $connection = unsavedConnection(['credential_ref' => 'sao.absent', 'credential' => null]);
+
+    expect(fn (): array => (new ConnectionCredentialResolver)->resolveFor($connection, app(HttpVersionDriver::class)))
+        ->toThrow(MissingCredentialException::class);
+});
+
+test('for a driver with a required secret a connection holding none still throws', function (): void {
+    $connection = unsavedConnection(['credential_ref' => null, 'credential' => null]);
+
+    expect(fn (): array => (new ConnectionCredentialResolver)->resolveFor($connection, app(GitHubDriver::class)))
+        ->toThrow(MissingCredentialException::class);
+});
+
+test('for a driver without a required secret a stored credential is still returned', function (): void {
+    $connection = unsavedConnection(['credential_ref' => null, 'credential' => ['auth_header' => 'X-Probe-Token: abc']]);
+
+    expect((new ConnectionCredentialResolver)->resolveFor($connection, app(HttpVersionDriver::class)))
+        ->toBe(['auth_header' => 'X-Probe-Token: abc']);
 });

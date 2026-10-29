@@ -107,6 +107,13 @@ function fakeBitbucket(): void
             return Http::response(['values' => [['status' => 'modified']], 'size' => 1]);
         }
 
+        if (str_starts_with($path, '/2.0/repositories/acme/widgets/merge-base/')) {
+            // The merge base of a commit and a later ref is the commit itself, full length.
+            $spec = rawurldecode(mb_substr($path, mb_strlen('/2.0/repositories/acme/widgets/merge-base/')));
+
+            return Http::response(['hash' => mb_str_pad(explode('..', $spec)[0], 40, '0')]);
+        }
+
         if (str_starts_with($path, '/2.0/repositories/acme/widgets/src/')) {
             $rest = mb_substr($path, mb_strlen('/2.0/repositories/acme/widgets/src/'));
             $file = mb_substr($rest, (int) mb_strpos($rest, '/') + 1);
@@ -227,4 +234,95 @@ test('it normalizes a bitbucket issue into the canonical shape', function (): vo
         ->and($issue['remote_priority'])->toBe('major')
         ->and($issue['assignee'])->toBe('Bit Bucket')
         ->and($issue['url'])->toBe('https://bitbucket.org/acme/widgets/issues/2');
+});
+
+/**
+ * @param  array<string, mixed>|string  $body
+ */
+function fakeBitbucketMergeBase(array|string $body, int $status = 200): void
+{
+    Http::fake(['api.bitbucket.org/2.0/repositories/acme/widgets/merge-base/*' => Http::response($body, $status)]);
+}
+
+test('bitbucket tells that a ref contains a commit when the merge base is the commit', function (): void {
+    $sha = str_repeat('a', 40);
+    fakeBitbucketMergeBase(['hash' => $sha]);
+
+    expect((new BitbucketDriver)->containsCommit(bitbucketContext(), $sha, 'main'))->toBeTrue();
+
+    Http::assertSent(static fn (Request $request): bool => $request->method() === 'GET'
+        && str_ends_with((string) parse_url($request->url(), PHP_URL_PATH), "/merge-base/{$sha}..main"));
+});
+
+test('bitbucket tells that a ref does not contain a commit when the merge base is another commit', function (): void {
+    fakeBitbucketMergeBase(['hash' => str_repeat('b', 40)]);
+
+    expect((new BitbucketDriver)->containsCommit(bitbucketContext(), str_repeat('a', 40), 'main'))->toBeFalse();
+});
+
+test('bitbucket matches a short sha against the full merge base, in any letter case', function (): void {
+    fakeBitbucketMergeBase(['hash' => 'ABC1234' . str_repeat('0', 33)]);
+
+    expect((new BitbucketDriver)->containsCommit(bitbucketContext(), 'abc1234', 'main'))->toBeTrue()
+        ->and((new BitbucketDriver)->containsCommit(bitbucketContext(), 'ABC1234', 'main'))->toBeTrue()
+        ->and((new BitbucketDriver)->containsCommit(bitbucketContext(), 'abc1235', 'main'))->toBeFalse();
+});
+
+test('bitbucket cannot tell for an unknown commit, a server error or an unexpected shape', function (int $httpStatus, array|string $body): void {
+    fakeBitbucketMergeBase($body, $httpStatus);
+
+    expect((new BitbucketDriver)->containsCommit(bitbucketContext(), 'abc1234', 'main'))->toBeNull();
+})->with([
+    'unknown commit' => [404, ['type' => 'error']],
+    'forbidden' => [403, ['type' => 'error']],
+    'server error' => [500, ['type' => 'error']],
+    'no hash' => [200, ['type' => 'commit']],
+    'array hash' => [200, ['hash' => ['x']]],
+    'not json' => [200, '<html></html>'],
+]);
+
+test('bitbucket cannot tell when the network fails', function (): void {
+    Http::fake(['api.bitbucket.org/*' => Http::failedConnection()]);
+
+    expect((new BitbucketDriver)->containsCommit(bitbucketContext(), 'abc1234', 'main'))->toBeNull();
+});
+
+test('bitbucket asks nothing for a sha shorter than seven characters or not hexadecimal', function (string $sha): void {
+    Http::fake();
+
+    expect((new BitbucketDriver)->containsCommit(bitbucketContext(), $sha, 'main'))->toBeNull();
+
+    Http::assertNothingSent();
+})->with(['', 'abc123', 'not-a-sha', 'abc123g']);
+
+test('bitbucket url-encodes a ref that contains a slash', function (): void {
+    fakeBitbucketMergeBase(['hash' => str_repeat('a', 40)]);
+
+    (new BitbucketDriver)->containsCommit(bitbucketContext(), str_repeat('a', 40), 'release/1.0');
+
+    Http::assertSent(static fn (Request $request): bool => str_contains($request->url(), '..release%2F1.0'));
+});
+
+test('bitbucket first tag containing a commit skips a diverged tag and an unknown one', function (): void {
+    $sha = str_repeat('a', 40);
+    Http::fake([
+        'api.bitbucket.org/2.0/repositories/acme/widgets/refs/tags*' => Http::response([
+            'values' => [
+                ['name' => 'v1.0.0', 'target' => ['hash' => 's1']],
+                ['name' => 'v1.1.0', 'target' => ['hash' => 's2']],
+                ['name' => 'v2.0.0', 'target' => ['hash' => 's3']],
+            ],
+        ]),
+        'api.bitbucket.org/2.0/repositories/acme/widgets/merge-base/*' => static function (Request $request) use ($sha) {
+            $spec = (string) basename((string) parse_url($request->url(), PHP_URL_PATH));
+
+            return match (explode('..', $spec)[1] ?? null) {
+                'v1.0.0' => Http::response(['hash' => str_repeat('b', 40)]),
+                'v1.1.0' => Http::response(['type' => 'error'], 404),
+                default => Http::response(['hash' => $sha]),
+            };
+        },
+    ]);
+
+    expect((new BitbucketDriver)->firstTagContaining(bitbucketContext(), $sha))->toBe('v2.0.0');
 });

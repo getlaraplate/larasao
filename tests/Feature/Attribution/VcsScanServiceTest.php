@@ -109,3 +109,16 @@ test('a non-vcs binding is skipped', function (): void {
 
     expect(app(VcsScanService::class)->scan($binding, 'main')->processed)->toBeFalse();
 });
+
+test('a scanned commit stores its own sha as the commit sha', function (): void {
+    $project = Project::factory()->create();
+    $ticket = Ticket::factory()->for($project)->create();
+
+    $binding = bindStubVcs([
+        ['sha' => 'ABC1234', 'message' => "Fixes {$ticket->key}"],
+    ], null, $project);
+
+    app(VcsScanService::class)->scan($binding, 'main');
+
+    expect(ChangeRef::query()->where('ticket_id', $ticket->id)->sole()->commit_sha)->toBe('abc1234');
+});

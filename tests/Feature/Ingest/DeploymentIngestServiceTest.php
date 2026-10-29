@@ -179,3 +179,42 @@ test('a succeeded deploy without a sha or ref keeps the stored commit and branch
         ->and($environment->current_commit)->toBe('abc1234')
         ->and($environment->current_branch)->toBe('main');
 });
+
+test('a succeeded deploy with an empty, invalid or oversized sha and ref keeps the stored commit and branch', function (string $sha, string $ref): void {
+    $project = Project::factory()->create();
+    Environment::factory()->for($project)->create([
+        'name' => 'production',
+        'current_commit' => 'abc1234',
+        'current_branch' => 'main',
+    ]);
+
+    $this->service->ingest($project, new DeployEvent(
+        version: '1.5.0',
+        status: DeploymentStatus::Succeeded,
+        environmentName: 'production',
+        meta: ['sha' => $sha, 'ref' => $ref],
+    ));
+
+    $environment = Environment::query()->where('project_id', $project->id)->where('name', 'production')->sole();
+
+    expect($environment->current_version)->toBe('1.5.0')
+        ->and($environment->current_commit)->toBe('abc1234')
+        ->and($environment->current_branch)->toBe('main');
+})->with([
+    'empty' => ['', ''],
+    'not a sha' => ['refs/heads/main', ''],
+    'oversized' => [str_repeat('a', 300), str_repeat('b', 300)],
+]);
+
+test('a succeeded deploy sha is stored lowercase', function (): void {
+    $project = Project::factory()->create();
+
+    $this->service->ingest($project, new DeployEvent(
+        version: '1.4.0',
+        status: DeploymentStatus::Succeeded,
+        environmentName: 'production',
+        meta: ['sha' => 'ABC1234DEF'],
+    ));
+
+    expect(Environment::query()->where('project_id', $project->id)->sole()->current_commit)->toBe('abc1234def');
+});

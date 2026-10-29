@@ -154,6 +154,27 @@ occurred, and the distinct environments and versions seen. The cooldown is measu
 current time, so reprocessing many old events of one signal posts at most one comment. Pushing the
 comment to an external tracker is not done.
 
+### Fix containment
+
+For every fix (a `Fixes` change ref with a commit) and every environment that reports a
+`current_commit`, SAO asks the project's `vcs` binding whether the running commit contains the fix
+and stores the answer as a fix presence: contained, not contained, or unknown when the VCS could
+not tell. The ticket view shows the contained and not-contained environments; an unknown answer
+is never shown as "not contained". Closure still decides on the release version only.
+
+The check runs on its own, queued, whenever an environment's commit changes (a deploy, a probe,
+a live occurrence) or a fix gains a commit. A known answer is never asked again for the same
+commit. An unknown answer is asked again on the next such change; there is no schedule, so to
+retry unknown answers or to backfill run:
+
+```bash
+php artisan sao:fix:check {project?}
+```
+
+`{project}` is a key prefix (all projects without it). The command prints how many presences it
+wrote and exits `1` on an unknown project. A project without a usable `vcs` binding writes
+nothing.
+
 ## Reprocessing ingest events
 
 An ingest event that did not become a signal (`discarded`, `uncorrelated` or
@@ -257,8 +278,10 @@ Design: `docs/superpowers/specs/2026-07-31-sao-module-design.md` in the applicat
     gate). `ReleaseHealthService` judges whether a release introduced new or
     worsening signals versus the previous release over an equal window;
     `DeploymentIngestService` records a durable, idempotent deploy history
-    (`sao_deployments`) that makes the environment version census a projection and
-    gives release health a precise per-deploy anchor. Plan:
+    (`sao_deployments`) that makes the environment version census a projection of
+    the succeeded deployments (kept fresh between deploys by live error occurrences
+    and the census probe, see Deployments) and gives release health a precise
+    per-deploy anchor. Plan:
     `docs/plans/release-health-and-deploy-ingest.md`.
 
 ### Deployments
@@ -272,6 +295,23 @@ any external integration (CLI-only CD steps, replay) with:
 ```bash
 php artisan sao:deploy:record {project} {version} --env=production --status=succeeded --external-id=ci-run-42
 ```
+
+A deployment's `meta.sha` and `meta.ref` become the environment's commit and branch only when
+the sha is 7 to 64 hexadecimal characters (stored lowercase) and the branch is non-empty and at
+most 255 characters; otherwise the stored commit and branch are kept.
+
+Live error occurrences feed the same census between deploys. An occurrence that names an
+environment the project already has, and reports a version, stamps that environment with:
+
+-   the version only when it resolves to a release of the project, through the same
+    normalization as the version census (`v1.4.0` and `1.4.0 (build 123)` stamp `1.4.0`, the
+    release's version); a version that resolves to no release (`nightly`) writes nothing;
+-   the commit only when it is a valid sha and the branch only when it fits its column, with the
+    same rules as a deployment;
+-   at most one write per minute while version, commit and branch are unchanged.
+
+An occurrence never creates an environment, a rate-limited occurrence feeds nothing, and a
+replayed or reprocessed occurrence never touches the census.
 
 ### Census probe
 

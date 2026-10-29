@@ -240,3 +240,77 @@ test('it normalizes a github issue into the canonical shape', function (): void 
         ->and($issue['assignee'])->toBe('octocat')
         ->and($issue['url'])->toBe('https://github.com/acme/widgets/issues/2');
 });
+
+/**
+ * @param  array<string, mixed>|string  $body
+ */
+function fakeGitHubCompare(array|string $body, int $status = 200): void
+{
+    Http::fake(['api.github.com/repos/acme/widgets/compare/*' => Http::response($body, $status)]);
+}
+
+test('github tells that a ref contains a commit when the compare is ahead or identical', function (string $status): void {
+    fakeGitHubCompare(['status' => $status]);
+
+    expect((new GitHubDriver)->containsCommit(githubContext(), 'abc1234', 'main'))->toBeTrue();
+
+    Http::assertSent(static fn (Request $request): bool => $request->method() === 'GET'
+        && str_ends_with((string) parse_url($request->url(), PHP_URL_PATH), '/repos/acme/widgets/compare/abc1234...main'));
+})->with(['ahead', 'identical']);
+
+test('github tells that a ref does not contain a commit when the compare is behind or diverged', function (string $status): void {
+    fakeGitHubCompare(['status' => $status]);
+
+    expect((new GitHubDriver)->containsCommit(githubContext(), 'abc1234', 'main'))->toBeFalse();
+})->with(['behind', 'diverged']);
+
+test('github cannot tell for an unknown ref, a server error or an unexpected shape', function (int $httpStatus, array|string $body): void {
+    fakeGitHubCompare($body, $httpStatus);
+
+    expect((new GitHubDriver)->containsCommit(githubContext(), 'abc1234', 'main'))->toBeNull();
+})->with([
+    'unknown commit' => [404, ['message' => 'Not Found']],
+    'unknown ref validation' => [422, ['message' => 'Validation Failed']],
+    'server error' => [500, ['message' => 'boom']],
+    'rate limited' => [403, ['message' => 'rate limit']],
+    'no status' => [200, ['ahead_by' => 1]],
+    'unknown status' => [200, ['status' => 'weird']],
+    'not json' => [200, '<html></html>'],
+]);
+
+test('github cannot tell when the network fails', function (): void {
+    Http::fake(['api.github.com/*' => Http::failedConnection()]);
+
+    expect((new GitHubDriver)->containsCommit(githubContext(), 'abc1234', 'main'))->toBeNull();
+});
+
+test('github asks nothing for a sha that is empty or not hexadecimal', function (string $sha): void {
+    Http::fake();
+
+    expect((new GitHubDriver)->containsCommit(githubContext(), $sha, 'main'))->toBeNull();
+
+    Http::assertNothingSent();
+})->with(['', 'not-a-sha', 'abc 123']);
+
+test('github url-encodes a ref that contains a slash', function (): void {
+    fakeGitHubCompare(['status' => 'ahead']);
+
+    (new GitHubDriver)->containsCommit(githubContext(), 'abc1234', 'release/1.0');
+
+    Http::assertSent(static fn (Request $request): bool => str_contains($request->url(), '/compare/abc1234...release%2F1.0'));
+});
+
+test('github first tag containing a commit is the first tag whose compare says contained', function (): void {
+    Http::fake([
+        'api.github.com/repos/acme/widgets/tags*' => Http::response([
+            ['name' => 'v1.0.0', 'commit' => ['sha' => 's1']],
+            ['name' => 'v1.1.0', 'commit' => ['sha' => 's2']],
+            ['name' => 'v2.0.0', 'commit' => ['sha' => 's3']],
+        ]),
+        'api.github.com/repos/acme/widgets/compare/abc1234...v1.0.0' => Http::response(['status' => 'diverged']),
+        'api.github.com/repos/acme/widgets/compare/abc1234...v1.1.0' => Http::response(['message' => 'Not Found'], 404),
+        'api.github.com/repos/acme/widgets/compare/abc1234...v2.0.0' => Http::response(['status' => 'ahead']),
+    ]);
+
+    expect((new GitHubDriver)->firstTagContaining(githubContext(), 'abc1234'))->toBe('v2.0.0');
+});

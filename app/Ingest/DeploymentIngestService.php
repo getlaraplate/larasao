@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Modules\SAO\Ingest;
 
 use Modules\SAO\Drivers\Support\DeployEvent;
+use Modules\SAO\Drivers\Support\VcsIdentifier;
 use Modules\SAO\Events\DeploymentRecorded;
 use Modules\SAO\Models\Connection;
 use Modules\SAO\Models\Deployment;
@@ -19,7 +20,9 @@ use Modules\SAO\Services\DeployCensusService;
  * external_id) so a re-delivery advances the same record instead of duplicating
  * it. On a terminal `succeeded` deploy it advances the environment's version
  * through {@see DeployCensusService}, so the census becomes a projection of this
- * history rather than a hand-set snapshot. Every persist announces
+ * history rather than a hand-set snapshot. The event's `meta.sha` and `meta.ref`
+ * become the environment's commit and branch only when they pass
+ * {@see VcsIdentifier}; otherwise the stored ones are kept. Every persist announces
  * {@see DeploymentRecorded} — the seam release-health and automation subscribe to.
  */
 final readonly class DeploymentIngestService
@@ -58,8 +61,8 @@ final readonly class DeploymentIngestService
             $this->census->observe(
                 $environment,
                 $event->version,
-                is_string($event->meta['sha'] ?? null) ? $event->meta['sha'] : null,
-                is_string($event->meta['ref'] ?? null) ? $event->meta['ref'] : null,
+                VcsIdentifier::sha($event->meta['sha'] ?? null),
+                VcsIdentifier::branch($event->meta['ref'] ?? null),
             );
         }
 

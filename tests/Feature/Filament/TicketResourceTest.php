@@ -8,11 +8,16 @@ use Livewire\Livewire;
 use Modules\Core\Models\Role;
 use Modules\Core\Models\User;
 use Modules\SAO\Data\ChangeContext;
+use Modules\SAO\Enums\ChangeRefRelation;
 use Modules\SAO\Enums\StatusCategory;
 use Modules\SAO\Filament\Resources\Tickets\Pages\EditTicket;
 use Modules\SAO\Filament\Resources\Tickets\Pages\ListTickets;
 use Modules\SAO\Filament\Resources\Tickets\Pages\ViewTicket;
 use Modules\SAO\Filament\Resources\Tickets\TicketResource;
+use Modules\SAO\Models\ChangeRef;
+use Modules\SAO\Models\Environment;
+use Modules\SAO\Models\FixPresence;
+use Modules\SAO\Models\Project;
 use Modules\SAO\Models\Ticket;
 use Modules\SAO\Models\TicketComment;
 use Modules\SAO\Models\TicketStatus;
@@ -104,6 +109,26 @@ test('the view page shows the ticket by name and its timeline read-only', functi
         ->assertDontSee('postComment');
 
     expect(method_exists(ViewTicket::class, 'postComment'))->toBeFalse();
+});
+
+test('the view page lists the environments that contain the fix and those that do not', function (): void {
+    $superadmin = ticketPanelSuperadmin();
+    $project = Project::factory()->create();
+    $ticket = Ticket::factory()->for($project)->create();
+    $fix = ChangeRef::factory()->create(['ticket_id' => $ticket->id, 'relation' => ChangeRefRelation::Fixes, 'commit_sha' => str_repeat('a', 40)]);
+    $dev = Environment::factory()->for($project)->create(['name' => 'dev-env', 'current_commit' => str_repeat('1', 40)]);
+    $production = Environment::factory()->for($project)->create(['name' => 'production-env', 'current_commit' => str_repeat('3', 40)]);
+    FixPresence::factory()->create(['change_ref_id' => $fix->id, 'environment_id' => $dev->id, 'deployed_commit' => $dev->current_commit, 'contained' => true]);
+    FixPresence::factory()->create(['change_ref_id' => $fix->id, 'environment_id' => $production->id, 'deployed_commit' => $production->current_commit, 'contained' => false]);
+
+    $this->actingAs($superadmin);
+    Filament::setCurrentPanel('admin');
+
+    Livewire::test(ViewTicket::class, ['record' => $ticket->getKey()])
+        ->assertSee(__('sao.fields.contained_environments'))
+        ->assertSee(__('sao.fields.not_contained_environments'))
+        ->assertSee('dev-env')
+        ->assertSee('production-env');
 });
 
 test('the edit page opens with the ticket in its form', function (): void {

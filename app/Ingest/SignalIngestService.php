@@ -7,9 +7,11 @@ namespace Modules\SAO\Ingest;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\UniqueConstraintViolationException;
+use Modules\SAO\Drivers\Support\VcsIdentifier;
 use Modules\SAO\Enums\SignalState;
 use Modules\SAO\Models\Environment;
 use Modules\SAO\Models\Project;
+use Modules\SAO\Models\Release;
 use Modules\SAO\Models\Signal;
 use Modules\SAO\Models\SignalOccurrence;
 use Modules\SAO\Services\DeployCensusService;
@@ -28,6 +30,11 @@ final readonly class SignalIngestService
      * Attempts of the ingest transaction: the first, and two retries after a deadlock or a lock timeout.
      */
     private const int TRANSACTION_ATTEMPTS = 3;
+
+    /**
+     * How long an occurrence that would not change an environment's census leaves it unwritten.
+     */
+    private const int CENSUS_REFRESH_SECONDS = 60;
 
     public function __construct(
         private GroupKeyResolver $groupKeyResolver,
@@ -91,7 +98,7 @@ final readonly class SignalIngestService
         );
 
         if (! $isReplay) {
-            $this->observeEnvironment($project, $payload);
+            $this->observeEnvironment($project, $payload, $census->release);
         }
 
         $occurrence = SignalOccurrence::query()->create([
@@ -111,20 +118,28 @@ final readonly class SignalIngestService
     }
 
     /**
-     * Feeds the deploy census from a live occurrence: when the payload names a version and the project
-     * already has an environment of the occurrence's name, that environment is observed running it. An
-     * unknown name creates nothing, so a host name used as the fallback environment never fills the
-     * census. A replayed occurrence carries a historical version and is not fed in. The write is a plain
-     * database update of an existing row, so a retried attempt repeats it harmlessly.
+     * Feeds the deploy census from a live occurrence: when the occurrence's version resolved to a release
+     * of the project (the same normalization and lookup as the version census, {@see VersionCensusService})
+     * and the project already has an environment of the occurrence's name, that environment is observed
+     * running that release's version. A version that resolves to no release (`nightly`) writes nothing, so
+     * a messy log version never stands for a release version. An unknown name creates nothing, so a host
+     * name used as the fallback environment never fills the census. A replayed occurrence carries a
+     * historical version and is not fed in.
+     *
+     * The commit counts only when it is a sha and the branch only when it fits its column
+     * ({@see VcsIdentifier}); otherwise each is absent and the stored one is kept. When neither version,
+     * commit nor branch would change and the environment was stamped less than
+     * {@see self::CENSUS_REFRESH_SECONDS} seconds ago, nothing is written: a burst of errors does not update
+     * the environment row once per occurrence inside the ingest transaction. The write is a plain database
+     * update of an existing row, so a retried attempt repeats it harmlessly.
      *
      * @param  array<string, mixed>  $payload
      */
-    private function observeEnvironment(Project $project, array $payload): void
+    private function observeEnvironment(Project $project, array $payload, ?Release $release): void
     {
-        $version = $payload['version'] ?? null;
         $name = $payload['environment'] ?? null;
 
-        if (! is_string($version) || $version === '' || ! is_string($name) || $name === '') {
+        if (! $release instanceof Release || ! is_string($name) || $name === '') {
             return;
         }
 
@@ -137,12 +152,26 @@ final readonly class SignalIngestService
             return;
         }
 
-        $this->deployCensus->observe(
-            $environment,
-            $version,
-            is_string($payload['commit'] ?? null) && $payload['commit'] !== '' ? $payload['commit'] : null,
-            is_string($payload['branch'] ?? null) && $payload['branch'] !== '' ? $payload['branch'] : null,
-        );
+        $version = (string) $release->version;
+        $commit = VcsIdentifier::sha($payload['commit'] ?? null);
+        $branch = VcsIdentifier::branch($payload['branch'] ?? null);
+
+        if ($this->isFreshAndUnchanged($environment, $version, $commit, $branch)) {
+            return;
+        }
+
+        $this->deployCensus->observe($environment, $version, $commit, $branch);
+    }
+
+    private function isFreshAndUnchanged(Environment $environment, string $version, ?string $commit, ?string $branch): bool
+    {
+        if ($environment->last_seen_at === null || $environment->last_seen_at->lt(now()->subSeconds(self::CENSUS_REFRESH_SECONDS))) {
+            return false;
+        }
+
+        return $environment->current_version === $version
+            && ($commit === null || $commit === $environment->current_commit)
+            && ($branch === null || $branch === $environment->current_branch);
     }
 
     /**

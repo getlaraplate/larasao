@@ -217,3 +217,18 @@ test('the probe schedule is off and the cron defaults to every six hours', funct
     expect(config('sao.probe.enabled'))->toBeFalse()
         ->and(config('sao.probe.cron'))->toBe('0 */6 * * *');
 });
+
+test('a probe binding of a deleted project is skipped and the others are probed', function (): void {
+    Http::fake(['*' => Http::response(['version' => '2.1.0'])]);
+    $deleted = probe_project('OLD');
+    probe_environment($deleted, 'production', 'https://old.example.com');
+    $environment = probe_environment(probe_project('SHP'), 'production', 'https://shop.example.com');
+    $deleted->delete();
+
+    $this->artisan('sao:census:probe')
+        ->expectsOutputToContain('SHP production: 2.1.0')
+        ->doesntExpectOutputToContain('OLD')
+        ->assertSuccessful();
+
+    expect($environment->refresh()->current_version)->toBe('2.1.0');
+});

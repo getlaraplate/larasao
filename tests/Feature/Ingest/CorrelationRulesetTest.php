@@ -233,3 +233,32 @@ test('the environment is the rule one, else the payload one, else the server hos
         ->and($fromHost['environment'])->toBe('web-01')
         ->and($none['environment'])->toBeNull();
 });
+
+test('on the logs path the binding of a deleted project is ignored, so the live single binding still routes', function (): void {
+    $connection = sao_correlation_logs_connection();
+    $live = Project::factory()->create();
+    $deleted = Project::factory()->create();
+    sao_correlation_logs_bound($connection, $live);
+    sao_correlation_logs_bound($connection, $deleted);
+    $deleted->delete();
+
+    $result = sao_correlation_ruleset()->correlate(['server_host' => 'web-01'], CorrelationScope::forLogs($connection));
+
+    expect(Project::withTrashed()->find($deleted->getKey())?->trashed())->toBeTrue()
+        ->and($result['project']?->getKey())->toBe($live->getKey())
+        ->and($result['rule'])->toBe('binding');
+});
+
+test('a rule targeting a deleted project is skipped and the next rule wins', function (): void {
+    $deleted = Project::factory()->create();
+    $live = Project::factory()->create();
+    $profile = SourceProfile::factory()->create();
+    sao_correlation_rule($deleted, 'web-01', ['priority' => 1]);
+    $winner = sao_correlation_rule($live, 'web-01', ['priority' => 2]);
+    $deleted->delete();
+
+    $result = sao_correlation_ruleset()->correlate(['server_host' => 'web-01'], CorrelationScope::forProfile(null, $profile));
+
+    expect($result['project']?->getKey())->toBe($live->getKey())
+        ->and($result['rule'])->toBe("rule:{$winner->getKey()}");
+});
