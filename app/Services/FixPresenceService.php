@@ -28,7 +28,7 @@ use Throwable;
  * A pair whose row already holds a true or false answer is skipped: that answer
  * never changes for the same commit. A null answer (the VCS could not tell, or the
  * driver failed) is stored as null and asked again on the next check; it is never
- * written as false. A project without a usable `vcs` binding writes nothing.
+ * written as false, and never overwrites a true or false a concurrent check stored. A project without a usable `vcs` binding writes nothing.
  */
 final readonly class FixPresenceService
 {
@@ -148,14 +148,24 @@ final readonly class FixPresenceService
             ]);
         }
 
+        $triple = [
+            'change_ref_id' => $changeRef->getKey(),
+            'environment_id' => $environment->getKey(),
+            'deployed_commit' => $deployedCommit,
+        ];
+
+        if ($contained === null) {
+            $this->recordUnknown($triple);
+
+            return;
+        }
+
         // One atomic upsert on the unique triple: a concurrent run that inserted the
         // same pair first is overwritten rather than failing on the index, and a
         // row someone soft-deleted is revived with the fresh answer.
         FixPresence::query()->upsert(
             [[
-                'change_ref_id' => $changeRef->getKey(),
-                'environment_id' => $environment->getKey(),
-                'deployed_commit' => $deployedCommit,
+                ...$triple,
                 'contained' => $contained,
                 'checked_at' => now(),
                 'deleted_at' => null,
@@ -166,8 +176,37 @@ final readonly class FixPresenceService
     }
 
     /**
+     * Stores a null answer without ever overwriting a known one: the row is inserted
+     * when missing (an insert that ignores the unique triple, so a concurrent run that
+     * stored the pair first wins), and an existing row is refreshed only while its
+     * `contained` is still null. A true or false a concurrent run wrote stays.
+     *
+     * @param  array{change_ref_id: mixed, environment_id: mixed, deployed_commit: string}  $triple
+     */
+    private function recordUnknown(array $triple): void
+    {
+        $now = now();
+        $presence = new FixPresence;
+
+        FixPresence::query()->insertOrIgnore([
+            ...$triple,
+            'contained' => null,
+            'checked_at' => $now,
+            $presence->getCreatedAtColumn() => $now,
+            $presence->getUpdatedAtColumn() => $now,
+        ]);
+
+        FixPresence::query()
+            ->withTrashed()
+            ->where($triple)
+            ->whereNull('contained')
+            ->update(['checked_at' => $now, 'deleted_at' => null]);
+    }
+
+    /**
      * The project's `vcs` binding (the first by id) resolved to a driver and a
-     * binding context, or null when there is none or it cannot be used.
+     * binding context, or null when there is none, its project was deleted, or it
+     * cannot be used.
      *
      * @return array{driver: VcsCapability, context: BindingContext}|null
      */
@@ -175,6 +214,7 @@ final readonly class FixPresenceService
     {
         $binding = ProjectBinding::query()
             ->with('remoteConnection')
+            ->ofLiveProject()
             ->where('project_id', $projectId)
             ->where('capability', Capability::Vcs)
             ->orderBy('id')

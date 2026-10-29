@@ -97,12 +97,16 @@ final class CorrelationRuleset
     }
 
     /**
+     * The connection's `logs` bindings, ignoring those of a deleted project: such a
+     * binding neither counts against the single-binding route nor admits its project.
+     *
      * @return list<ProjectBinding>
      */
     private function logsBindings(CorrelationScope $scope): array
     {
         return ProjectBinding::query()
             ->with('project')
+            ->ofLiveProject()
             ->where('connection_id', $scope->connectionId)
             ->where('capability', Capability::Logs)
             ->get()

@@ -218,3 +218,19 @@ test('containment costs one presence query however many environments there are',
 
     expect($presenceQueries)->toBe(1);
 });
+
+test('a ticket of a deleted project resolves without environments instead of failing', function (): void {
+    $project = Project::factory()->create();
+    $ticket = Ticket::factory()->for($project)->create();
+    Environment::factory()->for($project)->create(['name' => 'production', 'current_version' => '1.4.0', 'current_commit' => 'abc1234']);
+    $project->delete();
+
+    $status = $this->resolver->forTicket($ticket->refresh(), 'production');
+
+    expect($status->fix_released)->toBeFalse()
+        ->and($status->deployed_environments)->toBe([])
+        ->and($status->missing_environments)->toBe([])
+        ->and($status->deployed_there)->toBeFalse()
+        ->and($status->contained_environments)->toBe([])
+        ->and($status->not_contained_environments)->toBe([]);
+});

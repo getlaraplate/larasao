@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Modules\SAO\Models;
 
+use Illuminate\Database\Eloquent\Attributes\Scope;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Modules\Core\Contracts\IsPartOfParent;
@@ -156,6 +158,20 @@ final class ProjectBinding extends Model implements IsPartOfParent
     protected static function newFactory(): Factory
     {
         return ProjectBindingFactory::new();
+    }
+
+    /**
+     * Bindings whose project still exists. Deleting a project is a soft delete that
+     * does not cascade to its bindings, so a binding can outlive its project; code
+     * that walks bindings to route or act on a project uses this scope to ignore them.
+     *
+     * @param  Builder<static>  $query
+     * @return Builder<static>
+     */
+    #[Scope]
+    protected function ofLiveProject(Builder $query): Builder
+    {
+        return $query->whereHas('project');
     }
 
     /**

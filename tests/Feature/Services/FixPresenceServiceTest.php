@@ -18,6 +18,7 @@ use Modules\SAO\Models\Project;
 use Modules\SAO\Models\ProjectBinding;
 use Modules\SAO\Models\Ticket;
 use Modules\SAO\Services\FixPresenceService;
+use Modules\SAO\Tests\Support\Drivers\CallbackContainsCommitVcsDriver;
 use Modules\SAO\Tests\Support\Drivers\FailingContainsCommitVcsDriver;
 use Modules\SAO\Tests\Support\Drivers\StubVcsDriver;
 
@@ -368,4 +369,73 @@ test('the job for a record deleted meanwhile does nothing', function (): void {
 
     expect(FixPresence::query()->count())->toBe(0)
         ->and($driver->containsCommitCallCount())->toBe(0);
+});
+
+test('a null answer never overwrites a known answer a concurrent run stored first', function (bool $known): void {
+    $project = Project::factory()->create();
+    $changeRef = fp_fix($project, 'aaaaaaa1');
+    $environment = fp_environment($project, 'production', 'deadbeef00');
+    fp_bind_vcs($project, new CallbackContainsCommitVcsDriver(static function () use ($changeRef, $environment, $known): ?bool {
+        FixPresence::factory()->create([
+            'change_ref_id' => $changeRef->id,
+            'environment_id' => $environment->id,
+            'deployed_commit' => 'deadbeef00',
+            'contained' => $known,
+            'checked_at' => now()->subMinute(),
+        ]);
+
+        return null;
+    }));
+
+    app(FixPresenceService::class)->checkEnvironment($environment);
+
+    expect(FixPresence::query()->sole()->contained)->toBe($known);
+})->with(['contained' => [true], 'not contained' => [false]]);
+
+test('a null answer for a pair with no row inserts it as null', function (): void {
+    $project = Project::factory()->create();
+    $changeRef = fp_fix($project, 'aaaaaaa1');
+    $environment = fp_environment($project, 'production', 'deadbeef00');
+    fp_bind_vcs($project, fp_stub(null));
+
+    app(FixPresenceService::class)->checkEnvironment($environment);
+
+    $presence = FixPresence::query()->sole();
+
+    expect($presence->change_ref_id)->toBe($changeRef->id)
+        ->and($presence->contained)->toBeNull()
+        ->and($presence->checked_at)->not->toBeNull();
+});
+
+test('a null answer refreshes the check time of a stored null row', function (): void {
+    $project = Project::factory()->create();
+    $changeRef = fp_fix($project, 'aaaaaaa1');
+    $environment = fp_environment($project, 'production', 'deadbeef00');
+    fp_bind_vcs($project, fp_stub(null));
+    FixPresence::factory()->unknown()->create([
+        'change_ref_id' => $changeRef->id,
+        'environment_id' => $environment->id,
+        'deployed_commit' => 'deadbeef00',
+        'checked_at' => now()->subDay(),
+    ]);
+
+    app(FixPresenceService::class)->checkEnvironment($environment);
+
+    $presence = FixPresence::query()->sole();
+
+    expect($presence->contained)->toBeNull()
+        ->and($presence->checked_at->greaterThan(now()->subMinute()))->toBeTrue();
+});
+
+test('the vcs binding of a deleted project is not used', function (): void {
+    $project = Project::factory()->create();
+    $driver = fp_stub(true);
+    fp_bind_vcs($project, $driver);
+    fp_fix($project, 'aaaaaaa1');
+    $environment = fp_environment($project, 'production', 'deadbeef00');
+    $project->delete();
+
+    expect(app(FixPresenceService::class)->checkEnvironment($environment))->toBe(0)
+        ->and($driver->containsCommitCallCount())->toBe(0)
+        ->and(FixPresence::query()->count())->toBe(0);
 });

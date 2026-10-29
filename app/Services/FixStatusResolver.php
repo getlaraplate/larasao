@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\SAO\Services;
 
-use Illuminate\Support\Collection;
+use Illuminate\Database\Eloquent\Collection;
 use Modules\SAO\Data\FixStatus;
 use Modules\SAO\Enums\ReleaseStatus;
 use Modules\SAO\Models\Environment;
@@ -22,11 +22,14 @@ use Modules\SAO\Models\Ticket;
  */
 final class FixStatusResolver
 {
+    /**
+     * A ticket whose project was deleted still resolves, with no environments.
+     */
     public function forTicket(Ticket $ticket, ?string $reportingEnvironment = null): FixStatus
     {
         $pullRequestMerged = $ticket->changeRefs()->mergedPullRequests()->fixes()->exists();
 
-        $environments = $ticket->project->environments()->orderBy('name')->get();
+        $environments = $ticket->project?->environments()->orderBy('name')->get() ?? new Collection;
         [$contained, $notContained] = $this->containment($ticket, $environments);
 
         $shippedRelease = $ticket->releases()
