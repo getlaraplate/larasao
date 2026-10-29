@@ -3,11 +3,13 @@
 declare(strict_types=1);
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Modules\SAO\Enums\ChangeRefRelation;
 use Modules\SAO\Enums\ChangeRefType;
 use Modules\SAO\Enums\TicketReleaseState;
 use Modules\SAO\Models\ChangeRef;
 use Modules\SAO\Models\Environment;
+use Modules\SAO\Models\FixPresence;
 use Modules\SAO\Models\Project;
 use Modules\SAO\Models\Release;
 use Modules\SAO\Models\Signal;
@@ -102,4 +104,117 @@ test('without a shipped release the fix is not released', function (): void {
     expect($status->fix_released)->toBeFalse()
         ->and($status->released_version)->toBeNull()
         ->and($status->deployed_there)->toBeFalse();
+});
+
+/**
+ * @return array{0: Project, 1: Ticket}
+ */
+function containmentProject(): array
+{
+    $project = Project::factory()->create();
+
+    return [$project, Ticket::factory()->for($project)->create()];
+}
+
+test('an environment whose presence row for its current commit is true is contained, false is not contained, null is neither', function (): void {
+    [$project, $ticket] = containmentProject();
+    $fix = ChangeRef::factory()->create(['ticket_id' => $ticket->id, 'relation' => ChangeRefRelation::Fixes, 'commit_sha' => str_repeat('a', 40)]);
+
+    $dev = Environment::factory()->for($project)->create(['name' => 'dev', 'current_commit' => str_repeat('1', 40)]);
+    $staging = Environment::factory()->for($project)->create(['name' => 'staging', 'current_commit' => str_repeat('2', 40)]);
+    $production = Environment::factory()->for($project)->create(['name' => 'production', 'current_commit' => str_repeat('3', 40)]);
+
+    FixPresence::factory()->create(['change_ref_id' => $fix->id, 'environment_id' => $dev->id, 'deployed_commit' => $dev->current_commit, 'contained' => true]);
+    FixPresence::factory()->create(['change_ref_id' => $fix->id, 'environment_id' => $staging->id, 'deployed_commit' => $staging->current_commit, 'contained' => false]);
+    FixPresence::factory()->unknown()->create(['change_ref_id' => $fix->id, 'environment_id' => $production->id, 'deployed_commit' => $production->current_commit]);
+
+    $status = $this->resolver->forTicket($ticket->refresh());
+
+    expect($status->contained_environments)->toBe(['dev'])
+        ->and($status->not_contained_environments)->toBe(['staging']);
+});
+
+test('a presence row for an older commit than the current one counts for nothing', function (): void {
+    [$project, $ticket] = containmentProject();
+    $fix = ChangeRef::factory()->create(['ticket_id' => $ticket->id, 'relation' => ChangeRefRelation::Fixes, 'commit_sha' => str_repeat('a', 40)]);
+
+    $environment = Environment::factory()->for($project)->create(['name' => 'production', 'current_commit' => str_repeat('3', 40)]);
+    FixPresence::factory()->create(['change_ref_id' => $fix->id, 'environment_id' => $environment->id, 'deployed_commit' => str_repeat('9', 40), 'contained' => true]);
+
+    $status = $this->resolver->forTicket($ticket->refresh());
+
+    expect($status->contained_environments)->toBe([])
+        ->and($status->not_contained_environments)->toBe([]);
+
+    FixPresence::factory()->create(['change_ref_id' => $fix->id, 'environment_id' => $environment->id, 'deployed_commit' => $environment->current_commit, 'contained' => false]);
+
+    expect($this->resolver->forTicket($ticket->refresh())->not_contained_environments)->toBe(['production']);
+});
+
+test('with several fixing change refs one contained row makes the environment contained', function (): void {
+    [$project, $ticket] = containmentProject();
+    $first = ChangeRef::factory()->create(['ticket_id' => $ticket->id, 'relation' => ChangeRefRelation::Fixes, 'commit_sha' => str_repeat('a', 40)]);
+    $second = ChangeRef::factory()->create(['ticket_id' => $ticket->id, 'relation' => ChangeRefRelation::Fixes, 'commit_sha' => str_repeat('b', 40)]);
+
+    $environment = Environment::factory()->for($project)->create(['name' => 'production', 'current_commit' => str_repeat('3', 40)]);
+    FixPresence::factory()->create(['change_ref_id' => $first->id, 'environment_id' => $environment->id, 'deployed_commit' => $environment->current_commit, 'contained' => false]);
+    FixPresence::factory()->create(['change_ref_id' => $second->id, 'environment_id' => $environment->id, 'deployed_commit' => $environment->current_commit, 'contained' => true]);
+
+    $status = $this->resolver->forTicket($ticket->refresh());
+
+    expect($status->contained_environments)->toBe(['production'])
+        ->and($status->not_contained_environments)->toBe([]);
+});
+
+test('mentions and other projects environments never feed the containment lists', function (): void {
+    [$project, $ticket] = containmentProject();
+    $mention = ChangeRef::factory()->create(['ticket_id' => $ticket->id, 'relation' => ChangeRefRelation::Mentions, 'commit_sha' => str_repeat('a', 40)]);
+    $environment = Environment::factory()->for($project)->create(['name' => 'dev', 'current_commit' => str_repeat('1', 40)]);
+    FixPresence::factory()->create(['change_ref_id' => $mention->id, 'environment_id' => $environment->id, 'deployed_commit' => $environment->current_commit, 'contained' => true]);
+
+    $fix = ChangeRef::factory()->create(['ticket_id' => $ticket->id, 'relation' => ChangeRefRelation::Fixes, 'commit_sha' => str_repeat('b', 40)]);
+    $foreign = Environment::factory()->create(['name' => 'aaa', 'current_commit' => str_repeat('4', 40)]);
+    FixPresence::factory()->create(['change_ref_id' => $fix->id, 'environment_id' => $foreign->id, 'deployed_commit' => $foreign->current_commit, 'contained' => true]);
+
+    $status = $this->resolver->forTicket($ticket->refresh());
+
+    expect($status->contained_environments)->toBe([])
+        ->and($status->not_contained_environments)->toBe([]);
+});
+
+test('containment is reported with a shipped release too and leaves the deployment lists untouched', function (): void {
+    [$project, $ticket] = containmentProject();
+    $fix = ChangeRef::factory()->create(['ticket_id' => $ticket->id, 'relation' => ChangeRefRelation::Fixes, 'commit_sha' => str_repeat('a', 40)]);
+    $release = Release::factory()->for($project)->shipped()->create(['version' => '1.4.0']);
+    TicketRelease::factory()->create(['ticket_id' => $ticket->id, 'release_id' => $release->id, 'state' => TicketReleaseState::Shipped]);
+
+    $staging = Environment::factory()->for($project)->create(['name' => 'staging', 'current_version' => '1.4.0', 'current_commit' => str_repeat('2', 40)]);
+    $production = Environment::factory()->for($project)->create(['name' => 'production', 'current_version' => '1.3.9', 'current_commit' => str_repeat('3', 40)]);
+    FixPresence::factory()->create(['change_ref_id' => $fix->id, 'environment_id' => $staging->id, 'deployed_commit' => $staging->current_commit, 'contained' => true]);
+    FixPresence::factory()->create(['change_ref_id' => $fix->id, 'environment_id' => $production->id, 'deployed_commit' => $production->current_commit, 'contained' => false]);
+
+    $status = $this->resolver->forTicket($ticket->refresh(), 'production');
+
+    expect($status->deployed_environments)->toBe(['staging'])
+        ->and($status->missing_environments)->toBe(['production'])
+        ->and($status->deployed_there)->toBeFalse()
+        ->and($status->contained_environments)->toBe(['staging'])
+        ->and($status->not_contained_environments)->toBe(['production']);
+});
+
+test('containment costs one presence query however many environments there are', function (): void {
+    [$project, $ticket] = containmentProject();
+    $fix = ChangeRef::factory()->create(['ticket_id' => $ticket->id, 'relation' => ChangeRefRelation::Fixes, 'commit_sha' => str_repeat('a', 40)]);
+
+    foreach (['dev', 'staging', 'production'] as $index => $name) {
+        $environment = Environment::factory()->for($project)->create(['name' => $name, 'current_commit' => str_repeat((string) $index, 40)]);
+        FixPresence::factory()->create(['change_ref_id' => $fix->id, 'environment_id' => $environment->id, 'deployed_commit' => $environment->current_commit, 'contained' => true]);
+    }
+
+    DB::enableQueryLog();
+    $this->resolver->forTicket($ticket->refresh());
+    $presenceQueries = collect(DB::getQueryLog())->filter(fn (array $query): bool => str_contains((string) $query['query'], 'sao_fix_presences'))->count();
+    DB::disableQueryLog();
+
+    expect($presenceQueries)->toBe(1);
 });
