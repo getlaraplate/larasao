@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\SAO\Drivers\Support;
 
+use Modules\SAO\Drivers\Contracts\DriverInterface;
 use Modules\SAO\Exceptions\MissingCredentialException;
 use Modules\SAO\Models\Connection;
 
@@ -41,5 +42,29 @@ final class ConnectionCredentialResolver
         }
 
         throw MissingCredentialException::forConnection((string) $connection->name);
+    }
+
+    /**
+     * Resolves the connection's secret as the driver needs it. When the driver's
+     * schema declares no required secret ({@see DriverConfigurationSchema::credentialOptional()}),
+     * a connection that holds no secret at all resolves to an empty set instead of
+     * failing; a connection that names a `credential_ref` must still resolve it. Every
+     * driver that declares a required secret is resolved as strictly as {@see self::resolve()}.
+     *
+     * @return array<string, mixed>
+     */
+    public function resolveFor(Connection $connection, DriverInterface $driver): array
+    {
+        try {
+            return $this->resolve($connection);
+        } catch (MissingCredentialException $exception) {
+            $ref = $connection->credential_ref;
+
+            if (($ref !== null && $ref !== '') || ! $driver->configurationSchema()->credentialOptional()) {
+                throw $exception;
+            }
+
+            return [];
+        }
     }
 }

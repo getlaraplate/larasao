@@ -11,12 +11,12 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Modules\Core\Contracts\IsPartOfParent;
 use Modules\Core\Overrides\Model;
 use Modules\SAO\Database\Factories\ProjectBindingFactory;
+use Modules\SAO\Drivers\Contracts\DriverInterface;
 use Modules\SAO\Drivers\Support\BindingContext;
 use Modules\SAO\Drivers\Support\ConnectionCredentialResolver;
 use Modules\SAO\Enums\Capability;
 use Modules\SAO\Enums\SAOTables;
 use Modules\SAO\Enums\SyncDirection;
-use Modules\SAO\Exceptions\MissingCredentialException;
 use Modules\SAO\Exceptions\UnsupportedCapabilityException;
 use Override;
 
@@ -81,26 +81,17 @@ final class ProjectBinding extends Model implements IsPartOfParent
      * (base URL + resolved credentials) plus this binding's remote identifier,
      * config and maps.
      *
-     * With `$credentialOptional`, a connection that holds no secret at all
-     * resolves to an empty credential set instead of failing, for a driver whose
-     * secret is optional (an unauthenticated probe). A connection that names a
-     * `credential_ref` is still required to resolve it.
+     * Given the `$driver` the binding runs on, the credentials are resolved through
+     * {@see ConnectionCredentialResolver::resolveFor()}, so a driver whose schema
+     * declares no required secret works with a connection that holds none. Without
+     * it the credentials are resolved strictly.
      */
-    public function bindingContext(ConnectionCredentialResolver $resolver, bool $credentialOptional = false): BindingContext
+    public function bindingContext(ConnectionCredentialResolver $resolver, ?DriverInterface $driver = null): BindingContext
     {
         $connection = $this->remoteConnection;
-
-        try {
-            $credentials = $resolver->resolve($connection);
-        } catch (MissingCredentialException $exception) {
-            $ref = $connection->credential_ref;
-
-            if (! $credentialOptional || ($ref !== null && $ref !== '')) {
-                throw $exception;
-            }
-
-            $credentials = [];
-        }
+        $credentials = $driver instanceof DriverInterface
+            ? $resolver->resolveFor($connection, $driver)
+            : $resolver->resolve($connection);
 
         return new BindingContext(
             $connection->connectionContext($credentials),

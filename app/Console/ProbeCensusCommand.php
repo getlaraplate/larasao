@@ -115,7 +115,7 @@ final class ProbeCensusCommand extends Command
             throw new ProbeException("The driver [{$driver->key()}] cannot probe versions.");
         }
 
-        $probed = $driver->probe($binding->bindingContext($resolver, credentialOptional: true), $environment);
+        $probed = $driver->probe($binding->bindingContext($resolver, $driver), $environment);
 
         if (! $probed instanceof ProbedVersion) {
             throw new ProbeException('The driver returned no version.');

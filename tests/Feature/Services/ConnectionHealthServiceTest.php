@@ -53,3 +53,34 @@ test('a missing credential is unhealthy without any network call', function (): 
 
     Http::assertNothingSent();
 });
+
+test('a probe connection without a secret is checked by its driver and recorded healthy', function (): void {
+    Http::fake();
+    $connection = Connection::factory()->create([
+        'driver_key' => 'http-version',
+        'base_url' => null,
+        'credential' => null,
+        'credential_ref' => null,
+        'capabilities' => [Capability::Probe],
+    ]);
+
+    $result = app(ConnectionHealthService::class)->check($connection);
+
+    expect($result->healthy)->toBeTrue()
+        ->and($connection->fresh()->health_state)->toBe(ConnectionHealth::Healthy);
+
+    Http::assertNothingSent();
+});
+
+test('a probe connection naming a credential ref that does not resolve is unhealthy', function (): void {
+    $connection = Connection::factory()->create([
+        'driver_key' => 'http-version',
+        'base_url' => null,
+        'credential' => null,
+        'credential_ref' => 'services.sao_probe_absent',
+        'capabilities' => [Capability::Probe],
+    ]);
+
+    expect(app(ConnectionHealthService::class)->check($connection)->healthy)->toBeFalse()
+        ->and($connection->fresh()->health_state)->toBe(ConnectionHealth::Unhealthy);
+});
