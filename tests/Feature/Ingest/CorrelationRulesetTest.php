@@ -168,6 +168,25 @@ test('on the logs path a rule to a project without a logs binding is skipped and
         ->and($result['rule'])->toBe("rule:{$winner->getKey()}");
 });
 
+test('on the logs path a project key hit on a project without a logs binding does not match', function (): void {
+    $connection = sao_correlation_logs_connection();
+    $unbound = Project::factory()->create(['key_prefix' => 'WIDGETS']);
+    $bound = Project::factory()->create();
+    sao_correlation_logs_bound($connection, $bound);
+
+    $result = sao_correlation_ruleset()->correlate(['project_key' => 'WIDGETS'], CorrelationScope::forLogs($connection));
+
+    expect($result['project']?->getKey())->toBe($bound->getKey())
+        ->and($result['rule'])->toBe('binding');
+
+    sao_correlation_logs_bound($connection, $unbound);
+
+    $routed = sao_correlation_ruleset()->correlate(['project_key' => 'WIDGETS'], CorrelationScope::forLogs($connection));
+
+    expect($routed['project']?->getKey())->toBe($unbound->getKey())
+        ->and($routed['rule'])->toBe('project_key');
+});
+
 test('the same rule routes freely on the generic path', function (): void {
     $project = Project::factory()->create();
     $profile = SourceProfile::factory()->create();

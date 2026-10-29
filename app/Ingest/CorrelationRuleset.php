@@ -19,7 +19,9 @@ use Modules\SAO\Models\ProjectBinding;
  * the operator rules in scope (priority, then id; recorded `rule:{id}`), the
  * built-in rule mapping a canonical `project_key` to a `Project.key_prefix`
  * (recorded `project_key`), and, on the driver path only, the connection's
- * single `logs` binding (recorded `binding`).
+ * single `logs` binding (recorded `binding`). The driver path never routes
+ * outside the projects bound to the connection with `logs`: an operator rule or
+ * a project key naming any other project does not match there.
  *
  * The environment is the winning rule's, else the payload's, else the event's
  * `server_host`, else none.
@@ -56,7 +58,7 @@ final class CorrelationRuleset
         if ($projectKey !== null) {
             $project = Project::query()->where('key_prefix', $projectKey)->first();
 
-            if ($project instanceof Project) {
+            if ($project instanceof Project && ($logsProjectIds === null || in_array((int) $project->getKey(), $logsProjectIds, true))) {
                 return $this->result($canonical, $project, 'project_key', null);
             }
         }

@@ -23,7 +23,7 @@ function graylogPayload(): string
         'event_definition_title' => 'High error rate',
         'event' => ['priority' => 2, 'source' => 'web-01', 'timestamp' => '2026-08-16T10:00:00Z'],
         'backlog' => [
-            ['message' => 'RuntimeException: queue stalled', 'source' => 'web-01', 'level' => 3, 'timestamp' => '2026-08-16T09:59:00Z'],
+            ['message' => 'RuntimeException: queue stalled', 'source' => 'web-01', 'level' => 3, 'timestamp' => '2026-08-16T09:59:00Z', 'fields' => ['application_url' => 'https://shop.example.com/cart']],
             ['message' => 'RuntimeException: queue stalled', 'source' => 'web-02', 'level' => 3, 'timestamp' => '2026-08-16T09:59:30Z'],
         ],
     ], JSON_THROW_ON_ERROR);
@@ -56,8 +56,11 @@ test('unpacking yields one event per backlog message, source-tagged, without a n
 
     expect($first['source'])->toBe('graylog')
         ->and($first['message'])->toBe('RuntimeException: queue stalled')
-        ->and($first['environment'])->toBe('web-01')
-        ->and($first)->not->toHaveKey('native_key');
+        ->and($first['server_host'])->toBe('web-01')
+        ->and($first['request_url'])->toBe('https://shop.example.com/cart')
+        ->and($first)->not->toHaveKey('environment')
+        ->and($first)->not->toHaveKey('native_key')
+        ->and($page->items[1]['request_url'])->toBeNull();
 });
 
 test('the resolver computes a fingerprint key for a graylog event, not a namespaced native one', function (): void {
