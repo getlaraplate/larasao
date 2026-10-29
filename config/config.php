@@ -31,6 +31,15 @@ return [
             'enabled' => false,
             'min_occurrences' => 1,
         ],
+
+        // Recurrence comment (SignalRecurrenceCommenter): when an occurrence is
+        // recorded on a signal whose ticket is not closed, the ticket gets one
+        // system comment per cooldown summing up what recurred. The cooldown is
+        // read as at least 1 minute.
+        'recurrence_comment' => [
+            'enabled' => true,
+            'cooldown_minutes' => 60,
+        ],
     ],
 
     // Scheduled inbound polling for trackers with no push transport

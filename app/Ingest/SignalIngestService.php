@@ -11,6 +11,7 @@ use Modules\SAO\Enums\SignalState;
 use Modules\SAO\Models\Project;
 use Modules\SAO\Models\Signal;
 use Modules\SAO\Models\SignalOccurrence;
+use Modules\SAO\Services\SignalRecurrenceCommenter;
 use Modules\SAO\Services\VersionCensusService;
 
 /**
@@ -29,6 +30,7 @@ final readonly class SignalIngestService
     public function __construct(
         private GroupKeyResolver $groupKeyResolver,
         private VersionCensusService $versionCensus,
+        private SignalRecurrenceCommenter $recurrenceCommenter,
     ) {}
 
     /**
@@ -60,7 +62,8 @@ final readonly class SignalIngestService
 
     /**
      * The body of one ingest attempt. It reads and builds every model it touches, and changes nothing outside
-     * the transaction, so a retried attempt starts from what the database holds after the rollback.
+     * the transaction, so a retried attempt starts from what the database holds after the rollback. The
+     * recurrence comment it may post is a database write too ({@see SignalRecurrenceCommenter}).
      *
      * @param  array<string, mixed>  $payload
      */
@@ -84,7 +87,7 @@ final readonly class SignalIngestService
             is_string($payload['version'] ?? null) ? $payload['version'] : null,
         );
 
-        SignalOccurrence::query()->create([
+        $occurrence = SignalOccurrence::query()->create([
             'signal_id' => $signal->getKey(),
             'environment' => is_string($payload['environment'] ?? null) ? $payload['environment'] : null,
             'context' => is_array($payload['context'] ?? null) ? $payload['context'] : null,
@@ -92,6 +95,10 @@ final readonly class SignalIngestService
             'affected_release_id' => $census->release?->getKey(),
             'occurred_at' => $occurredAt,
         ]);
+
+        // Still inside the transaction and under the signal lock: the cooldown check and the comment are
+        // serialized per signal, and both are plain database writes that a rollback or a retry discards.
+        $this->recurrenceCommenter->afterOccurrence($signal, $occurrence);
 
         return $signal;
     }
