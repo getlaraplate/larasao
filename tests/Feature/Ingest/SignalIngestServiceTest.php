@@ -2,10 +2,14 @@
 
 declare(strict_types=1);
 
+use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Modules\SAO\Enums\SAOTables;
 use Modules\SAO\Enums\SignalState;
+use Modules\SAO\Ingest\GroupKeyResolver;
 use Modules\SAO\Ingest\SignalIngestService;
 use Modules\SAO\Models\Project;
+use Modules\SAO\Models\Signal;
 
 uses(RefreshDatabase::class);
 
@@ -159,4 +163,78 @@ test('a replayed occurrence records itself but does not reopen a resolved signal
     expect($signal->fresh()->state)->toBe(SignalState::Resolved)
         ->and($signal->fresh()->occurrence_count)->toBe(2)
         ->and($signal->occurrences()->count())->toBe(2);
+});
+
+test('a recurrence increments the occurrence count in the database instead of writing a literal', function (): void {
+    $project = Project::factory()->create();
+    $service = app(SignalIngestService::class);
+    $signal = $service->ingest($project, sao_error_payload());
+
+    $connection = $signal->getConnection();
+    $grammar = $connection->getQueryGrammar();
+    $updates = [];
+    $connection->listen(function (QueryExecuted $query) use (&$updates, $grammar): void {
+        if (str_starts_with(mb_strtolower($query->sql), 'update ' . $grammar->wrapTable(SAOTables::Signals->value))) {
+            $updates[] = $query->sql;
+        }
+    });
+
+    $recurred = $service->ingest($project, sao_error_payload());
+
+    $atomic = $grammar->wrap('occurrence_count') . ' = ' . $grammar->wrap('occurrence_count') . ' + 1';
+
+    expect($updates)->toHaveCount(1)
+        ->and($updates[0])->toContain($atomic)
+        ->and($recurred->occurrence_count)->toBe(2)
+        ->and($recurred->isDirty())->toBeFalse()
+        ->and($signal->fresh()->occurrence_count)->toBe(2);
+});
+
+test('a signal created concurrently by another ingest is recurred instead of failing', function (): void {
+    $project = Project::factory()->create();
+    $service = app(SignalIngestService::class);
+    $groupKey = app(GroupKeyResolver::class)->resolve(sao_error_payload());
+
+    $connection = (new Signal)->getConnection();
+    $signals = $connection->getQueryGrammar()->wrapTable(SAOTables::Signals->value);
+    $competitorCreated = false;
+
+    // The competing ingest commits its signal between this ingest's lookup (which
+    // found nothing) and its insert, as a second process would.
+    $connection->listen(function (QueryExecuted $query) use (&$competitorCreated, $signals, $project, $groupKey): void {
+        if ($competitorCreated || ! str_starts_with(mb_strtolower($query->sql), 'select') || ! str_contains($query->sql, 'from ' . $signals)) {
+            return;
+        }
+
+        $competitorCreated = true;
+        Signal::factory()->create([
+            'project_id' => $project->getKey(),
+            'group_key' => $groupKey,
+            'state' => SignalState::Open,
+            'occurrence_count' => 1,
+            'first_seen_at' => now(),
+            'last_seen_at' => now(),
+        ]);
+    });
+
+    $signal = $service->ingest($project, sao_error_payload());
+
+    expect($competitorCreated)->toBeTrue()
+        ->and(Signal::query()->where('project_id', $project->getKey())->count())->toBe(1)
+        ->and($signal->occurrence_count)->toBe(2)
+        ->and($signal->fresh()->occurrence_count)->toBe(2)
+        ->and($signal->occurrences()->count())->toBe(1);
+});
+
+test('a rate limited occurrence leaves the occurrence count unchanged', function (): void {
+    config()->set('sao.signals.max_occurrences_per_window', 1);
+    $project = Project::factory()->create();
+    $service = app(SignalIngestService::class);
+
+    $signal = $service->ingest($project, sao_error_payload());
+    $limited = $service->ingest($project, sao_error_payload());
+
+    expect($limited->occurrence_count)->toBe(1)
+        ->and($signal->fresh()->occurrence_count)->toBe(1)
+        ->and($signal->occurrences()->count())->toBe(1);
 });
