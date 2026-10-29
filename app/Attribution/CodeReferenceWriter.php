@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Modules\SAO\Attribution;
 
 use Modules\SAO\Enums\ChangeRefRelation;
+use Modules\SAO\Enums\ChangeRefType;
 use Modules\SAO\Models\ChangeRef;
 use Modules\SAO\Models\Ticket;
 
@@ -56,11 +57,26 @@ final readonly class CodeReferenceWriter
         $changeRef->merged_at = $reference->mergedAt ?? $changeRef->merged_at;
         $changeRef->base_ref = $reference->baseRef ?? $changeRef->base_ref;
         $changeRef->head_ref = $reference->headRef ?? $changeRef->head_ref;
+        $changeRef->commit_sha = $this->resolveCommitSha($changeRef, $reference);
         $changeRef->relation = $this->resolveRelation($changeRef, $relation);
 
         $changeRef->save();
 
         return $changeRef;
+    }
+
+    /**
+     * A commit reference is its own sha; any other type takes the sha the reference
+     * carries, falling back to the stored one so a re-delivery without it keeps it.
+     * Stored lowercase, so it compares equal to what a VCS reports.
+     */
+    private function resolveCommitSha(ChangeRef $changeRef, CodeReference $reference): ?string
+    {
+        $sha = $reference->type === ChangeRefType::Commit
+            ? $reference->identifier
+            : ($reference->commitSha ?? $changeRef->commit_sha);
+
+        return $sha === null || $sha === '' ? null : mb_strtolower($sha);
     }
 
     /**

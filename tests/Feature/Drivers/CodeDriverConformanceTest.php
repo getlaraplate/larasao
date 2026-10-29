@@ -65,6 +65,12 @@ test('the github pull-request driver maps a merged PR into a change reference', 
         ->and($refs[0]->headRef)->toBe('fix/null-guard');
 });
 
+test('the github pull-request driver carries the merge commit sha of a merged PR', function (): void {
+    $refs = (new GitHubPullRequestDriver)->unpack(codeContext(), githubPrPayload(merged: true));
+
+    expect($refs[0]->commitSha)->toBe('c0ffee1234');
+});
+
 function githubPrPayload(bool $merged): string
 {
     return (string) json_encode([
@@ -73,6 +79,7 @@ function githubPrPayload(bool $merged): string
             'number' => 7,
             'merged' => $merged,
             'merged_at' => $merged ? '2026-08-23T10:00:00Z' : null,
+            'merge_commit_sha' => 'c0ffee1234',
             'title' => 'Fixes SAO-1',
             'body' => 'A null guard for the parser.',
             'html_url' => 'https://github.com/acme/app/pull/7',

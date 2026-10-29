@@ -37,6 +37,7 @@ final class ChangeRef extends Model implements IsPartOfParent
         'merged_at',
         'base_ref',
         'head_ref',
+        'commit_sha',
     ];
 
     /**
