@@ -20,3 +20,17 @@ A superadmin adds a connection from the panel: pick the driver, fill in the form
 - **Status names are yours to map.** Because every installation names its statuses differently, SAO maps an external status onto its own canonical meaning through a small, editable table with sensible defaults — never a fixed guess.
 
 You do not need to configure anything to use SAO; connections are optional.
+
+## Which project does a log event belong to
+
+When a log or error source pushes events to SAO, each event is matched to **one** project on its own. A superadmin controls the matching from the panel under **Correlation rules**:
+
+- Choose what to compare: the project key, the **server host** (the machine that emitted the event) or the **request host** (the host of the page being served when it happened).
+- Choose how: an exact comparison, or a wildcard one where `*` stands for any sequence of characters (`*.example.com`) and every other character, the dot included, is taken literally. Comparisons ignore upper and lower case.
+- Pick the project and, optionally, an environment name such as `production`. The environment is only a label on the event; it does not create an environment record.
+- Optionally limit a rule to one connection or one source profile.
+- Rules run by priority (lower number first), then in creation order, and the first match wins. If no rule matches, SAO falls back to the project key in the event and then, when the connection serves a single project, to that project. An event that still matches nothing is kept as **Uncorrelated** so you can see it and write a rule for it.
+
+A connection with no log binding to any project cannot route events at all: its events are recorded as **Discarded**, with the reason `no-logs-binding`. When a connection serves several projects, an event is never copied to all of them: it needs a rule. Rules and the project key only route to projects bound to the receiving connection.
+
+Graylog sends the source of the message as the server host and reads the request host from the `application_url` field of the message, so for Graylog these are the values to build rules on. When no rule and no payload sets an environment, the server host is used as the environment name.
