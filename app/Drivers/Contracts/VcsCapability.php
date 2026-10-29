@@ -21,6 +21,17 @@ interface VcsCapability
      */
     public function compare(BindingContext $context, string $base, string $head): array;
 
+    /**
+     * Whether `$sha` is reachable from `$ref` (a branch, tag or commit): true when the
+     * ref contains the commit (the commit itself counts), false when it does not
+     * (diverged or behind), null when the driver cannot tell.
+     *
+     * Null covers an unknown commit or ref, a sha too short or not hexadecimal to be
+     * asked about, any provider error and an unexpected response; it never throws for
+     * an HTTP or network failure. A caller must not store null as false: null is retried.
+     */
+    public function containsCommit(BindingContext $context, string $sha, string $ref): ?bool;
+
     public function fileAtRef(BindingContext $context, string $path, string $ref): ?string;
 
     /**

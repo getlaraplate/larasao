@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\SAO\Drivers\External;
 
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Support\Facades\Http;
 use Modules\SAO\Drivers\Contracts\BlameCapability;
@@ -346,9 +347,43 @@ final readonly class GitHubDriver implements BlameCapability, DriverInterface, I
     }
 
     /**
-     * Best-effort over the first page of tags: the first tag the commit is an
-     * ancestor of (comparison status `ahead` or `identical`). GitHub exposes no
-     * single "tags containing commit" endpoint; recent tags are the useful set.
+     * Compares `$sha` (base) to `$ref` (head): `ahead` or `identical` means the ref
+     * contains the commit, `behind` or `diverged` that it does not. GitHub answers 404
+     * (or 422 for a ref it cannot resolve) for an unknown side; with any other error,
+     * a network failure or a status it does not document, the answer is null.
+     * A sha that is not hexadecimal is not asked about.
+     */
+    #[Override]
+    public function containsCommit(BindingContext $context, string $sha, string $ref): ?bool
+    {
+        if (preg_match('/\A[0-9a-f]+\z/i', $sha) !== 1 || $ref === '') {
+            return null;
+        }
+
+        try {
+            $response = $this->connection($context)->get(
+                $this->repoPath($context) . '/compare/' . rawurlencode($sha) . '...' . rawurlencode($ref),
+            );
+        } catch (ConnectionException) {
+            return null;
+        }
+
+        if (! $response->successful()) {
+            return null;
+        }
+
+        return match ($response->json('status')) {
+            'ahead', 'identical' => true,
+            'behind', 'diverged' => false,
+            default => null,
+        };
+    }
+
+    /**
+     * Best-effort over the first page of tags: the first tag that contains the commit
+     * ({@see containsCommit()} is true; a tag it cannot tell about is skipped).
+     * GitHub exposes no single "tags containing commit" endpoint; recent tags are the
+     * useful set.
      */
     #[Override]
     public function firstTagContaining(BindingContext $context, string $commitSha): ?string
@@ -356,13 +391,7 @@ final readonly class GitHubDriver implements BlameCapability, DriverInterface, I
         foreach ($this->tags($context)->items as $tag) {
             $name = self::stringOr($tag['tag'] ?? '');
 
-            if ($name === '') {
-                continue;
-            }
-
-            $status = $this->compare($context, $commitSha, $name)['status'] ?? null;
-
-            if ($status === 'ahead' || $status === 'identical') {
+            if ($name !== '' && $this->containsCommit($context, $commitSha, $name) === true) {
                 return $name;
             }
         }
