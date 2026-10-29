@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Modules\Core\Overrides\Model;
 use Modules\SAO\Database\Factories\EnvironmentFactory;
 use Modules\SAO\Enums\SAOTables;
+use Modules\SAO\Jobs\CheckFixPresenceJob;
 use Override;
 
 /**
@@ -47,6 +48,31 @@ final class Environment extends Model
     }
 
     /**
+     * A new deployed commit queues a check of which fixes it contains. Queued after
+     * commit: a change inside a transaction that rolls back (a dry-run reprocess, a
+     * retried ingest attempt) queues nothing, and a committed one queues once.
+     * `created`/`updated` rather than `saved`, because they fire only when a row was
+     * written, so a later no-op save cannot re-queue an earlier change.
+     */
+    #[Override]
+    protected static function booted(): void
+    {
+        parent::booted();
+
+        self::created(static function (Environment $environment): void {
+            if ($environment->current_commit !== null && $environment->current_commit !== '') {
+                $environment->queueFixPresenceCheck();
+            }
+        });
+
+        self::updated(static function (Environment $environment): void {
+            if ($environment->wasChanged('current_commit') && $environment->current_commit !== null && $environment->current_commit !== '') {
+                $environment->queueFixPresenceCheck();
+            }
+        });
+    }
+
+    /**
      * @return Factory<Environment>
      */
     protected static function newFactory(): Factory
@@ -64,5 +90,14 @@ final class Environment extends Model
             'project_id' => 'integer',
             'last_seen_at' => 'datetime',
         ];
+    }
+
+    private function queueFixPresenceCheck(): void
+    {
+        $id = (int) $this->getKey();
+
+        $this->getConnection()->afterCommit(static function () use ($id): void {
+            dispatch(CheckFixPresenceJob::forEnvironment($id));
+        });
     }
 }

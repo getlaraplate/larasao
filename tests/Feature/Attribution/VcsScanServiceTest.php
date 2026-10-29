@@ -115,10 +115,10 @@ test('a scanned commit stores its own sha as the commit sha', function (): void 
     $ticket = Ticket::factory()->for($project)->create();
 
     $binding = bindStubVcs([
-        ['sha' => 'ABC123', 'message' => "Fixes {$ticket->key}"],
+        ['sha' => 'ABC1234', 'message' => "Fixes {$ticket->key}"],
     ], null, $project);
 
     app(VcsScanService::class)->scan($binding, 'main');
 
-    expect(ChangeRef::query()->where('ticket_id', $ticket->id)->sole()->commit_sha)->toBe('abc123');
+    expect(ChangeRef::query()->where('ticket_id', $ticket->id)->sole()->commit_sha)->toBe('abc1234');
 });

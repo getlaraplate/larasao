@@ -44,4 +44,5 @@ enum SAOTables: string
     case SyncOperations = 'sao_sync_operations';
     case ImportRuns = 'sao_import_runs';
     case CorrelationRules = 'sao_correlation_rules';
+    case FixPresences = 'sao_fix_presences';
 }

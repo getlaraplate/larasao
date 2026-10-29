@@ -294,6 +294,15 @@ Without `event` it takes every eligible event, narrowed by `--status` (`discarde
 -   **Failure leaves the environment unchanged.** A `ProbeException` (unreachable, bad status, not a JSON object, no version, refused address), an unexpected error (reported with its class name and logged as `sao.census.probe.failed`), or a version, commit or branch longer than the 255-character column writes nothing: the environment keeps its last values and goes stale through the census TTL. One environment never aborts the run.
 -   **Schedule.** Off by default. `sao.probe.enabled` (`SAO_PROBE_SCHEDULE`, default `false`) registers the command on the scheduler with `sao.probe.cron` (`SAO_PROBE_CRON`, default `0 */6 * * *`), without overlapping.
 
+### Fix presences
+
+A **fix presence** (`FixPresence`, table `sao_fix_presences`) answers "does this environment, running this commit, contain this fix?". One row per `(change_ref, environment, deployed_commit)`: the fix is a `Fixes` change ref with a `commit_sha` (a commit's own sha, a merged pull request's merge commit), the deployed commit is the environment's `current_commit` when asked, and `contained` is the answer of the project's `vcs` binding (the first by id) through `VcsCapability::containsCommit()`.
+
+-   **Which pairs.** The `Fixes` change refs with a `commit_sha` of the project's tickets × the project's environments with a `current_commit`. Mentions, change refs without a commit and environments without a commit are not checked. A project without a usable `vcs` binding writes nothing.
+-   **When it is computed.** `CheckFixPresenceJob` is queued after the transaction commits whenever an environment's `current_commit` changes (a deploy event, a probe, an edit) or a `Fixes` change ref gains a `commit_sha`; a rolled-back write queues nothing. `php artisan sao:fix:check {project?}` backfills synchronously (`{project}` is a key prefix, all projects without it), prints the number of rows written, and exits `1` on an unknown project.
+-   **Computed once, null retried.** The answer never changes for a commit, so a pair whose row holds `true` or `false` is not asked again; a new deployed commit adds a row and keeps the earlier ones. `null` means the VCS could not tell (unknown commit, unrelated histories, a provider error, or a driver failure, logged as `sao.fix_presence.check_failed`): it is stored as `null`, never as `false`, and asked again on the next check.
+-   **Valid shas only.** `CodeReferenceWriter` keeps a `commit_sha` only when it is 7 to 64 hexadecimal characters (stored lowercase); anything else counts as absent and the stored value is kept, and a commit whose identifier is not a sha has no `commit_sha`.
+
 ## Roadmap
 
 Design: `docs/superpowers/specs/2026-07-31-sao-module-design.md` in the application repository.

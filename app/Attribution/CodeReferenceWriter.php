@@ -44,6 +44,15 @@ final readonly class CodeReferenceWriter
         return new CodeReferenceOutcome($changeRefs, array_values(array_unique($unknownKeys)));
     }
 
+    private static function normalizedSha(?string $sha): ?string
+    {
+        if ($sha === null || preg_match('/^[0-9a-f]{7,64}\z/i', $sha) !== 1) {
+            return null;
+        }
+
+        return mb_strtolower($sha);
+    }
+
     private function upsert(Ticket $ticket, CodeReference $reference, ChangeRefRelation $relation): ChangeRef
     {
         $changeRef = ChangeRef::query()->firstOrNew([
@@ -68,15 +77,18 @@ final readonly class CodeReferenceWriter
     /**
      * A commit reference is its own sha; any other type takes the sha the reference
      * carries, falling back to the stored one so a re-delivery without it keeps it.
-     * Stored lowercase, so it compares equal to what a VCS reports.
+     * Only 7 to 64 hexadecimal characters count as a sha: anything else is treated
+     * as absent (a commit whose identifier is not a sha gets none, any other type
+     * keeps the stored one). Stored lowercase, so it compares equal to what a VCS
+     * reports.
      */
     private function resolveCommitSha(ChangeRef $changeRef, CodeReference $reference): ?string
     {
-        $sha = $reference->type === ChangeRefType::Commit
-            ? $reference->identifier
-            : ($reference->commitSha ?? $changeRef->commit_sha);
+        if ($reference->type === ChangeRefType::Commit) {
+            return self::normalizedSha($reference->identifier);
+        }
 
-        return $sha === null || $sha === '' ? null : mb_strtolower($sha);
+        return self::normalizedSha($reference->commitSha) ?? $changeRef->commit_sha;
     }
 
     /**

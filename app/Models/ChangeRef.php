@@ -14,6 +14,7 @@ use Modules\SAO\Database\Factories\ChangeRefFactory;
 use Modules\SAO\Enums\ChangeRefRelation;
 use Modules\SAO\Enums\ChangeRefType;
 use Modules\SAO\Enums\SAOTables;
+use Modules\SAO\Jobs\CheckFixPresenceJob;
 use Override;
 
 /**
@@ -72,6 +73,30 @@ final class ChangeRef extends Model implements IsPartOfParent
     }
 
     /**
+     * A fix that gains a commit (recorded with one, given a new one, or upgraded
+     * from a mention) queues a check of which environments contain it. Queued after
+     * commit, so a rolled-back write queues nothing. `created`/`updated` rather than
+     * `saved`, because they fire only when a row was written.
+     */
+    #[Override]
+    protected static function booted(): void
+    {
+        parent::booted();
+
+        self::created(static function (ChangeRef $changeRef): void {
+            if ($changeRef->isFixWithCommit()) {
+                $changeRef->queueFixPresenceCheck();
+            }
+        });
+
+        self::updated(static function (ChangeRef $changeRef): void {
+            if ($changeRef->isFixWithCommit() && ($changeRef->wasChanged('commit_sha') || $changeRef->wasChanged('relation'))) {
+                $changeRef->queueFixPresenceCheck();
+            }
+        });
+    }
+
+    /**
      * @return Factory<ChangeRef>
      */
     protected static function newFactory(): Factory
@@ -118,5 +143,19 @@ final class ChangeRef extends Model implements IsPartOfParent
             'relation' => ChangeRefRelation::class,
             'merged_at' => 'datetime',
         ];
+    }
+
+    private function isFixWithCommit(): bool
+    {
+        return $this->relation === ChangeRefRelation::Fixes && $this->commit_sha !== null && $this->commit_sha !== '';
+    }
+
+    private function queueFixPresenceCheck(): void
+    {
+        $id = (int) $this->getKey();
+
+        $this->getConnection()->afterCommit(static function () use ($id): void {
+            dispatch(CheckFixPresenceJob::forChangeRef($id));
+        });
     }
 }

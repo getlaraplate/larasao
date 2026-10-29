@@ -163,10 +163,10 @@ test('a code delivery stores the commit sha of its row', function (): void {
         'identifier' => 'pr-7',
         'type' => 'pull_request',
         'text' => "Fixes {$ticket->key}",
-        'commit_sha' => 'a1b2c3',
+        'commit_sha' => 'a1b2c3d',
     ], ['X-Code-Token' => 'shared', 'X-Delivery-Id' => 'del-1'])->assertStatus(202);
 
-    expect(ChangeRef::query()->where('ticket_id', $ticket->id)->sole()->commit_sha)->toBe('a1b2c3');
+    expect(ChangeRef::query()->where('ticket_id', $ticket->id)->sole()->commit_sha)->toBe('a1b2c3d');
 });
 
 test('a code delivery with an empty commit sha stores none', function (): void {
@@ -200,14 +200,14 @@ test('a re-delivery without a commit sha keeps the stored one and a new sha repl
         ], ['X-Code-Token' => 'shared', 'X-Delivery-Id' => $delivery])->assertStatus(202);
     };
 
-    $deliver(['commit_sha' => 'aaa111'], 'del-1');
+    $deliver(['commit_sha' => 'aaa1111'], 'del-1');
     $deliver([], 'del-2');
 
-    expect(ChangeRef::query()->where('ticket_id', $ticket->id)->sole()->commit_sha)->toBe('aaa111');
+    expect(ChangeRef::query()->where('ticket_id', $ticket->id)->sole()->commit_sha)->toBe('aaa1111');
 
-    $deliver(['commit_sha' => 'bbb222'], 'del-3');
+    $deliver(['commit_sha' => 'bbb2222'], 'del-3');
 
-    expect(ChangeRef::query()->where('ticket_id', $ticket->id)->sole()->commit_sha)->toBe('bbb222');
+    expect(ChangeRef::query()->where('ticket_id', $ticket->id)->sole()->commit_sha)->toBe('bbb2222');
 });
 
 test('a commit delivery stores its own identifier as the commit sha', function (): void {
@@ -224,4 +224,48 @@ test('a commit delivery stores its own identifier as the commit sha', function (
     ], ['X-Code-Token' => 'shared', 'X-Delivery-Id' => 'del-1'])->assertStatus(202);
 
     expect(ChangeRef::query()->where('ticket_id', $ticket->id)->sole()->commit_sha)->toBe('deadbeef01');
+});
+
+test('a code delivery with a commit sha that is not 7 to 64 hex characters keeps the stored one', function (string $invalid): void {
+    $project = Project::factory()->create();
+    $ticket = Ticket::factory()->for($project)->create();
+    $connection = sao_code_connection();
+    sao_bind_code($connection, $project);
+
+    $deliver = function (string $sha, string $delivery) use ($connection, $ticket): void {
+        $this->postJson(sao_code_url($connection), [
+            'identifier' => 'pr-7',
+            'type' => 'pull_request',
+            'text' => "Fixes {$ticket->key}",
+            'commit_sha' => $sha,
+        ], ['X-Code-Token' => 'shared', 'X-Delivery-Id' => $delivery])
+            ->assertStatus(202)
+            ->assertJson(['result' => 'code-recorded']);
+    };
+
+    $deliver('aaa1111', 'del-1');
+    $deliver($invalid, 'del-2');
+
+    expect(ChangeRef::query()->where('ticket_id', $ticket->id)->sole()->commit_sha)->toBe('aaa1111');
+})->with([
+    'too short' => ['abc123'],
+    'too long' => [str_repeat('a', 65)],
+    'longer than the column' => [str_repeat('a', 300)],
+    'not hex' => ['not-a-sha'],
+    'trailing newline' => ["abcdef1\n"],
+]);
+
+test('a commit delivery whose identifier is not a sha stores no commit sha', function (): void {
+    $project = Project::factory()->create();
+    $ticket = Ticket::factory()->for($project)->create();
+    $connection = sao_code_connection();
+    sao_bind_code($connection, $project);
+
+    $this->postJson(sao_code_url($connection), [
+        'identifier' => 'release-branch-merge',
+        'type' => 'commit',
+        'text' => "Fixes {$ticket->key}",
+    ], ['X-Code-Token' => 'shared', 'X-Delivery-Id' => 'del-1'])->assertStatus(202);
+
+    expect(ChangeRef::query()->where('ticket_id', $ticket->id)->sole()->commit_sha)->toBeNull();
 });
