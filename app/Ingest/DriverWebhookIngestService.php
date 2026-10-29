@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\SAO\Ingest;
 
+use Carbon\CarbonInterface;
 use Modules\SAO\Drivers\Contracts\LogsCapability;
 use Modules\SAO\Drivers\DriverRegistry;
 use Modules\SAO\Drivers\Support\BindingContext;
@@ -52,6 +53,47 @@ final readonly class DriverWebhookIngestService
     }
 
     /**
+     * Run one stored canonical item through the logs pipeline and save the row:
+     * discarded when the connection has no `logs` binding, else correlated and
+     * either recorded as uncorrelated or ingested into the project that won,
+     * with the resolved environment written into the stored payload. The live
+     * path calls it on a new row; reprocessing calls it on a stored one, passing
+     * the delivery's original time so the occurrence keeps it. The signature is
+     * checked only at receipt, never here.
+     *
+     * @param  CarbonInterface|null  $occurredAt  The original delivery time on a replay; null on a live delivery.
+     */
+    public function process(IngestEvent $event, Connection $connection, ?CarbonInterface $occurredAt = null): IngestEvent
+    {
+        $item = $event->payload;
+
+        $hasLogsBinding = ProjectBinding::query()
+            ->where('connection_id', $connection->getKey())
+            ->where('capability', Capability::Logs)
+            ->exists();
+
+        if (! $hasLogsBinding) {
+            return $this->finish($event, IngestStatus::Discarded, 'no-logs-binding');
+        }
+
+        $correlation = $this->ruleset->correlate($item, CorrelationScope::forLogs($connection));
+        $project = $correlation['project'];
+
+        if (! $project instanceof Project) {
+            return $this->finish($event, IngestStatus::Uncorrelated, 'no-correlation-rule-matched');
+        }
+
+        $item['environment'] = $correlation['environment'];
+
+        $signal = $this->signalIngest->ingest($project, $item, $occurredAt);
+        $event->payload = $item;
+
+        // getKey() is declared mixed on every Eloquent model; both of these
+        // are saved records with an auto-incrementing key.
+        return $this->finish($event, IngestStatus::Ingested, 'signal-recorded', (int) $project->getKey(), (int) $signal->getKey(), $correlation['rule']);
+    }
+
+    /**
      * @param  array<string, string>  $headers
      */
     private function handle(Connection $connection, string $deliveryId, string $rawBody, array $headers): WebhookIngestOutcome
@@ -90,8 +132,7 @@ final readonly class DriverWebhookIngestService
 
     /**
      * One event of a delivery, on its own: it is deduped on its own delivery id,
-     * discarded when the connection has no `logs` binding, else correlated and
-     * either recorded as uncorrelated or ingested into the project that won.
+     * then recorded on a new row through {@see self::process()}.
      *
      * @param  array<string, mixed>  $event
      */
@@ -108,46 +149,24 @@ final readonly class DriverWebhookIngestService
             return $existing;
         }
 
-        $hasLogsBinding = ProjectBinding::query()
-            ->where('connection_id', $connection->getKey())
-            ->where('capability', Capability::Logs)
-            ->exists();
-
-        if (! $hasLogsBinding) {
-            return $this->record($connection, $eventDeliveryId, $event, null, null, IngestStatus::Discarded, 'no-logs-binding', null);
-        }
-
-        $correlation = $this->ruleset->correlate($event, CorrelationScope::forLogs($connection));
-        $project = $correlation['project'];
-
-        if (! $project instanceof Project) {
-            return $this->record($connection, $eventDeliveryId, $event, null, null, IngestStatus::Uncorrelated, 'no-correlation-rule-matched', null);
-        }
-
-        $event['environment'] = $correlation['environment'];
-
-        $signal = $this->signalIngest->ingest($project, $event);
-
-        // getKey() is declared mixed on every Eloquent model; both of these
-        // are saved records with an auto-incrementing key.
-        return $this->record($connection, $eventDeliveryId, $event, (int) $project->getKey(), (int) $signal->getKey(), IngestStatus::Ingested, 'signal-recorded', $correlation['rule']);
-    }
-
-    /**
-     * @param  array<string, mixed>  $payload
-     */
-    private function record(Connection $connection, string $deliveryId, array $payload, ?int $projectId, ?int $signalId, IngestStatus $status, string $outcome, ?string $winningRule): IngestEvent
-    {
-        return IngestEvent::query()->create([
+        return $this->process(new IngestEvent([
             'connection_id' => $connection->getKey(),
             'pipeline' => IngestPipeline::Logs,
-            'delivery_id' => $deliveryId,
-            'payload' => $payload,
-            'status' => $status,
-            'outcome' => $outcome,
-            'project_id' => $projectId,
-            'winning_rule' => $winningRule,
-            'signal_id' => $signalId,
-        ]);
+            'delivery_id' => $eventDeliveryId,
+            'payload' => $event,
+            'status' => IngestStatus::Received,
+        ]), $connection);
+    }
+
+    private function finish(IngestEvent $event, IngestStatus $status, string $outcome, ?int $projectId = null, ?int $signalId = null, ?string $winningRule = null): IngestEvent
+    {
+        $event->status = $status;
+        $event->outcome = $outcome;
+        $event->project_id = $projectId;
+        $event->winning_rule = $winningRule;
+        $event->signal_id = $signalId;
+        $event->save();
+
+        return $event;
     }
 }
