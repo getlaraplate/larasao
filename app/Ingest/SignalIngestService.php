@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Modules\SAO\Ingest;
 
 use Carbon\CarbonInterface;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Modules\SAO\Enums\SignalState;
 use Modules\SAO\Models\Project;
@@ -40,7 +41,7 @@ final readonly class SignalIngestService
         $groupKey = $this->groupKeyResolver->resolve($payload);
 
         return (new Signal)->getConnection()->transaction(function () use ($project, $payload, $occurredAt, $isReplay, $groupKey): Signal {
-            $signal = $this->lockedSignal($project, $groupKey)
+            $signal = $this->existingSignal($project, $groupKey)
                 ?? $this->createSignal($project, $groupKey, $payload, $occurredAt);
 
             // Loop protection, layer 2: past the per-group cap within the window the
@@ -71,13 +72,27 @@ final readonly class SignalIngestService
         });
     }
 
-    private function lockedSignal(Project $project, string $groupKey): ?Signal
+    /**
+     * Finds the signal with a plain read and only then locks the row it found, by key. A locking read on a
+     * key that may not exist yet would take gap locks on the unique index (InnoDB, REPEATABLE READ), and two
+     * first creations of one group would then deadlock on their inserts instead of one losing the unique key.
+     */
+    private function existingSignal(Project $project, string $groupKey): ?Signal
     {
-        return Signal::query()
+        $signalId = Signal::query()
             ->where('project_id', $project->getKey())
             ->where('group_key', $groupKey)
-            ->lockForUpdate()
-            ->first();
+            ->value('id');
+
+        return $signalId === null ? null : $this->lockedSignalBy(Signal::query()->whereKey($signalId));
+    }
+
+    /**
+     * @param  Builder<Signal>  $query
+     */
+    private function lockedSignalBy(Builder $query): ?Signal
+    {
+        return $query->lockForUpdate()->first();
     }
 
     /**
@@ -101,7 +116,9 @@ final readonly class SignalIngestService
                 'last_seen_at' => $occurredAt,
             ]));
         } catch (UniqueConstraintViolationException $exception) {
-            return $this->lockedSignal($project, $groupKey) ?? throw $exception;
+            return $this->lockedSignalBy(
+                Signal::query()->where('project_id', $project->getKey())->where('group_key', $groupKey),
+            ) ?? throw $exception;
         }
     }
 

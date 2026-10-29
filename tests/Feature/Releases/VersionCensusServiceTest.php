@@ -2,8 +2,10 @@
 
 declare(strict_types=1);
 
+use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Modules\SAO\Enums\ReleaseStatus;
+use Modules\SAO\Enums\SAOTables;
 use Modules\SAO\Models\Project;
 use Modules\SAO\Models\Release;
 use Modules\SAO\Services\VersionCensusService;
@@ -47,5 +49,30 @@ test('censusing a version never downgrades a release a maintainer curated', func
     $result = $this->service->record($this->project->getKey(), '1.4.0');
 
     expect($result->release->status)->toBe(ReleaseStatus::Shipped)
+        ->and(Release::query()->count())->toBe(1);
+});
+
+test('a release created concurrently by another ingest is reused instead of failing', function (): void {
+    $connection = (new Release)->getConnection();
+    $releases = 'from ' . $connection->getQueryGrammar()->wrapTable(SAOTables::Releases->value);
+    $competitor = null;
+
+    // The competing ingest commits the release between this census lookup (which
+    // found nothing) and its insert, as a second process would.
+    $connection->listen(function (QueryExecuted $query) use (&$competitor, $releases): void {
+        if ($competitor !== null || ! str_starts_with(mb_strtolower($query->sql), 'select') || ! str_contains($query->sql, $releases)) {
+            return;
+        }
+
+        $competitor = Release::factory()->for($this->project)->create([
+            'version' => '1.4.0',
+            'status' => ReleaseStatus::Observed,
+        ]);
+    });
+
+    $result = $this->service->record($this->project->getKey(), '1.4.0');
+
+    expect($competitor)->not->toBeNull()
+        ->and($result->release->getKey())->toBe($competitor->getKey())
         ->and(Release::query()->count())->toBe(1);
 });

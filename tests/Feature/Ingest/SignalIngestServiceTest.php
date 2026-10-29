@@ -238,3 +238,35 @@ test('a rate limited occurrence leaves the occurrence count unchanged', function
         ->and($signal->fresh()->occurrence_count)->toBe(1)
         ->and($signal->occurrences()->count())->toBe(1);
 });
+
+test('an existing signal is found with a plain lookup and then re-read by key with the lock', function (): void {
+    $project = Project::factory()->create();
+    $service = app(SignalIngestService::class);
+    $signal = $service->ingest($project, sao_error_payload());
+
+    $connection = $signal->getConnection();
+    $grammar = $connection->getQueryGrammar();
+    $from = 'from ' . $grammar->wrapTable(SAOTables::Signals->value);
+    $selects = [];
+    $connection->listen(function (QueryExecuted $query) use (&$selects, $from): void {
+        // Aggregates on the table are the occurrence's `exists` validation, not reads of the signal.
+        if (str_starts_with(mb_strtolower($query->sql), 'select') && str_contains($query->sql, $from) && ! str_contains($query->sql, 'count(*)')) {
+            $selects[] = $query->sql;
+        }
+    });
+
+    $service->ingest($project, sao_error_payload());
+
+    // No locking read on a key that may not exist yet (InnoDB would take gap locks
+    // and two first creations would deadlock); the lock is taken on the found row.
+    expect($selects)->toHaveCount(2)
+        ->and($selects[0])->toContain($grammar->wrap('group_key'))
+        ->and(mb_strtolower($selects[0]))->not->toContain('for update')
+        ->and($selects[1])->toContain($grammar->wrap($signal->getQualifiedKeyName()) . ' = ?')
+        ->and($selects[1])->not->toContain($grammar->wrap('group_key'));
+
+    // SQLite compiles no lock clause; drivers that do must emit it on the re-read.
+    if ($connection->getDriverName() !== 'sqlite') {
+        expect(mb_strtolower($selects[1]))->toContain('for update');
+    }
+});
