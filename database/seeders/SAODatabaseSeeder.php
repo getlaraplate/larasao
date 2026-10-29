@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Modules\SAO\Database\Seeders;
 
 use Modules\Core\Casts\SettingTypeEnum;
+use Modules\Core\Models\Setting;
 use Modules\Core\Overrides\Seeder;
 use Modules\Core\Seeding\SeedReconciler;
 
@@ -37,15 +38,11 @@ class SAODatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        $outcome = app(SeedReconciler::class)->reconcile(
+        $this->logOperation(Setting::class);
+
+        $this->logReconciliation(app(SeedReconciler::class)->reconcile(
             self::internalSettingsDefinition('SAO', self::runtimeSettingDefinitions()),
-        );
-
-        $this->command?->line(
-            '    - created ' . count($outcome->created) . ', realigned ' . count($outcome->realigned) . ", unchanged {$outcome->unchanged}",
-        );
-
-        $this->call(SAOPermissionSeeder::class);
+        ));
     }
 
     /**
