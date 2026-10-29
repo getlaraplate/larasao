@@ -123,3 +123,40 @@ test('an old occurrence does not fill the rate limit window', function (): void 
 
     expect($signal->occurrences()->count())->toBe(3);
 });
+
+test('first seen moves back when an occurrence older than it is recorded', function (): void {
+    $project = Project::factory()->create();
+    $service = app(SignalIngestService::class);
+
+    $signal = $service->ingest($project, sao_error_payload());
+    $older = now()->subDays(2)->startOfSecond();
+
+    $service->ingest($project, sao_error_payload(), $older);
+
+    expect($signal->fresh()->first_seen_at->equalTo($older))->toBeTrue();
+});
+
+test('first seen stays when the occurrence is newer than it', function (): void {
+    $project = Project::factory()->create();
+    $service = app(SignalIngestService::class);
+    $first = now()->subDays(3)->startOfSecond();
+
+    $signal = $service->ingest($project, sao_error_payload(), $first);
+    $service->ingest($project, sao_error_payload(), now()->subDay());
+
+    expect($signal->fresh()->first_seen_at->equalTo($first))->toBeTrue();
+});
+
+test('a replayed occurrence records itself but does not reopen a resolved signal', function (): void {
+    $project = Project::factory()->create();
+    $service = app(SignalIngestService::class);
+
+    $signal = $service->ingest($project, sao_error_payload());
+    $signal->update(['state' => SignalState::Resolved]);
+
+    $service->ingest($project, sao_error_payload(), now()->subDays(2));
+
+    expect($signal->fresh()->state)->toBe(SignalState::Resolved)
+        ->and($signal->fresh()->occurrence_count)->toBe(2)
+        ->and($signal->occurrences()->count())->toBe(2);
+});

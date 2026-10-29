@@ -26,10 +26,11 @@ final readonly class SignalIngestService
 
     /**
      * @param  array<string, mixed>  $payload
-     * @param  CarbonInterface|null  $occurredAt  When the error originally happened; defaults to now. A replayed occurrence passes its original time.
+     * @param  CarbonInterface|null  $occurredAt  When the error originally happened; defaults to now. A replayed occurrence passes its original time: it widens the seen window both ways but never reopens a resolved signal, since an old event says nothing about the error being back.
      */
     public function ingest(Project $project, array $payload, ?CarbonInterface $occurredAt = null): Signal
     {
+        $isReplay = $occurredAt instanceof CarbonInterface;
         $occurredAt ??= now();
         $groupKey = $this->groupKeyResolver->resolve($payload);
 
@@ -56,12 +57,16 @@ final readonly class SignalIngestService
             return $signal;
         }
 
-        if ($signal->state === SignalState::Resolved) {
-            // The error came back: a resolved signal reopens on recurrence.
+        if ($signal->state === SignalState::Resolved && ! $isReplay) {
+            // The error came back: a resolved signal reopens on a live recurrence.
             $signal->state = SignalState::Open;
         }
 
         $signal->occurrence_count++;
+
+        if ($signal->first_seen_at === null || $occurredAt->lessThan($signal->first_seen_at)) {
+            $signal->first_seen_at = $occurredAt;
+        }
 
         if ($signal->last_seen_at === null || $occurredAt->greaterThan($signal->last_seen_at)) {
             $signal->last_seen_at = $occurredAt;
