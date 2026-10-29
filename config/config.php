@@ -59,6 +59,15 @@ return [
         'cron' => (string) env('SAO_HEALTH_CRON', '*/15 * * * *'),
     ],
 
+    // Scheduled census probe (sao:census:probe): asks each environment with a
+    // base URL which version it runs, for projects with a `probe` binding.
+    // Opt-in: off by default so no live request leaves unless an operator
+    // enables it; the command stays runnable on demand regardless.
+    'probe' => [
+        'enabled' => (bool) env('SAO_PROBE_SCHEDULE', false),
+        'cron' => (string) env('SAO_PROBE_CRON', '0 */6 * * *'),
+    ],
+
     // Release-health read model (ReleaseHealthService). Post-hoc, correlation
     // only — never a promote/rollback gate. `window_days` bounds how long after a
     // release its signals are attributed to it; the baseline is the previous
