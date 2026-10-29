@@ -38,7 +38,6 @@ it('does not ship the application toolchain', function (string $relative_path): 
     'peck.json',
     'rector.php',
     'cliff.toml',
-    'scripts/version.sh',
     'scripts/setup-hooks.sh',
     'scripts/hooks/post-commit',
 ]);
@@ -60,13 +59,7 @@ test('the readme names the module and its licence', function (): void {
     expect((string) $readme)->toContain('GNU AGPL v3');
 });
 
-test('the application can version this module', function (): void {
-    $version_script = dirname(__DIR__, 4) . '/scripts/version.sh';
-
-    expect(file_exists($version_script))->toBeTrue();
-    expect(is_executable($version_script))->toBeTrue();
-
-    // The module keeps the facts about itself; the application keeps the program that writes them.
+test('the module keeps its version and changelog', function (): void {
     $config = json_decode((string) file_get_contents(dirname(__DIR__, 2) . '/composer.json'), true, 512, JSON_THROW_ON_ERROR);
 
     expect($config['version'] ?? null)->toBeString();
