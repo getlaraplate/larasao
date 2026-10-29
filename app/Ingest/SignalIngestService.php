@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\SAO\Ingest;
 
+use Carbon\CarbonInterface;
 use Modules\SAO\Enums\SignalState;
 use Modules\SAO\Models\Project;
 use Modules\SAO\Models\Signal;
@@ -25,9 +26,11 @@ final readonly class SignalIngestService
 
     /**
      * @param  array<string, mixed>  $payload
+     * @param  CarbonInterface|null  $occurredAt  When the error originally happened; defaults to now. A replayed occurrence passes its original time.
      */
-    public function ingest(Project $project, array $payload): Signal
+    public function ingest(Project $project, array $payload, ?CarbonInterface $occurredAt = null): Signal
     {
+        $occurredAt ??= now();
         $groupKey = $this->groupKeyResolver->resolve($payload);
 
         $signal = Signal::query()->firstOrNew([
@@ -41,8 +44,8 @@ final readonly class SignalIngestService
             $signal->algo_version = is_numeric($payload['algo_version'] ?? null) ? (int) $payload['algo_version'] : 1;
             $signal->state = SignalState::Open;
             $signal->occurrence_count = 0;
-            $signal->first_seen_at = now();
-            $signal->last_seen_at = now();
+            $signal->first_seen_at = $occurredAt;
+            $signal->last_seen_at = $occurredAt;
             $signal->save();
         }
 
@@ -59,7 +62,11 @@ final readonly class SignalIngestService
         }
 
         $signal->occurrence_count++;
-        $signal->last_seen_at = now();
+
+        if ($signal->last_seen_at === null || $occurredAt->greaterThan($signal->last_seen_at)) {
+            $signal->last_seen_at = $occurredAt;
+        }
+
         $signal->save();
 
         $census = $this->versionCensus->record(
@@ -73,7 +80,7 @@ final readonly class SignalIngestService
             'context' => is_array($payload['context'] ?? null) ? $payload['context'] : null,
             'affected_version' => $census->affectedVersion,
             'affected_release_id' => $census->release?->getKey(),
-            'occurred_at' => now(),
+            'occurred_at' => $occurredAt,
         ]);
 
         return $signal;

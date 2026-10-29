@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\SAO\Ingest;
 
+use Modules\SAO\Enums\IngestPipeline;
 use Modules\SAO\Enums\IngestStatus;
 use Modules\SAO\Models\Connection;
 use Modules\SAO\Models\IngestEvent;
@@ -53,6 +54,7 @@ final readonly class WebhookIngestService
 
         $event = new IngestEvent([
             'connection_id' => $connectionId,
+            'pipeline' => IngestPipeline::Profile,
             'delivery_id' => $deliveryId,
             'payload' => $payload,
             'status' => IngestStatus::Received,

@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Modules\Core\Overrides\Model;
 use Modules\SAO\Database\Factories\IngestEventFactory;
+use Modules\SAO\Enums\IngestPipeline;
 use Modules\SAO\Enums\IngestStatus;
 use Modules\SAO\Enums\SAOTables;
 use Override;
@@ -26,6 +27,7 @@ final class IngestEvent extends Model
     #[Override]
     protected $fillable = [
         'connection_id',
+        'pipeline',
         'delivery_id',
         'payload',
         'source_profile_id',
@@ -34,6 +36,7 @@ final class IngestEvent extends Model
         'project_id',
         'winning_rule',
         'signal_id',
+        'reprocessed_at',
     ];
 
     /**
@@ -90,11 +93,13 @@ final class IngestEvent extends Model
     {
         return [
             'connection_id' => 'integer',
+            'pipeline' => IngestPipeline::class,
             'payload' => 'array',
             'source_profile_id' => 'integer',
             'status' => IngestStatus::class,
             'project_id' => 'integer',
             'signal_id' => 'integer',
+            'reprocessed_at' => 'datetime',
         ];
     }
 }

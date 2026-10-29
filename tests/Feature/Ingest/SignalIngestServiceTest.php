@@ -71,3 +71,55 @@ test('a resolved signal reopens when the error recurs', function (): void {
 
     expect($reopened->fresh()->state)->toBe(SignalState::Open);
 });
+
+test('an original occurrence time stamps the occurrence and a new signal', function (): void {
+    $project = Project::factory()->create();
+    $occurredAt = now()->subDays(2)->startOfSecond();
+
+    $signal = app(SignalIngestService::class)->ingest($project, sao_error_payload(), $occurredAt);
+
+    expect($signal->occurrences()->sole()->occurred_at->equalTo($occurredAt))->toBeTrue()
+        ->and($signal->fresh()->first_seen_at->equalTo($occurredAt))->toBeTrue()
+        ->and($signal->fresh()->last_seen_at->equalTo($occurredAt))->toBeTrue();
+});
+
+test('last seen never moves backwards when an older occurrence is recorded', function (): void {
+    $project = Project::factory()->create();
+    $service = app(SignalIngestService::class);
+
+    $signal = $service->ingest($project, sao_error_payload());
+    $seenToday = $signal->fresh()->last_seen_at;
+
+    $service->ingest($project, sao_error_payload(), now()->subDays(2));
+
+    expect($signal->fresh()->last_seen_at->equalTo($seenToday))->toBeTrue()
+        ->and($signal->fresh()->occurrence_count)->toBe(2);
+});
+
+test('last seen moves forward when the occurrence is newer than the stored value', function (): void {
+    $project = Project::factory()->create();
+    $service = app(SignalIngestService::class);
+
+    $signal = $service->ingest($project, sao_error_payload(), now()->subDays(3)->startOfSecond());
+    $newer = now()->subDay()->startOfSecond();
+
+    $service->ingest($project, sao_error_payload(), $newer);
+
+    expect($signal->fresh()->last_seen_at->equalTo($newer))->toBeTrue();
+});
+
+test('an old occurrence does not fill the rate limit window', function (): void {
+    config()->set('sao.signals.max_occurrences_per_window', 1);
+    $project = Project::factory()->create();
+    $service = app(SignalIngestService::class);
+
+    $signal = $service->ingest($project, sao_error_payload(), now()->subDays(2));
+    $service->ingest($project, sao_error_payload(), now()->subDays(2));
+    $service->ingest($project, sao_error_payload());
+
+    expect($signal->occurrences()->count())->toBe(3);
+
+    $service->ingest($project, sao_error_payload());
+
+    expect($signal->occurrences()->count())->toBe(3);
+});

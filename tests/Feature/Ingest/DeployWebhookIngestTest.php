@@ -6,6 +6,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Modules\Core\Support\CrudApiExposure;
 use Modules\SAO\Enums\Capability;
 use Modules\SAO\Enums\DeploymentStatus;
+use Modules\SAO\Enums\IngestPipeline;
 use Modules\SAO\Models\Connection;
 use Modules\SAO\Models\Deployment;
 use Modules\SAO\Models\Environment;
@@ -71,7 +72,8 @@ test('a signed deploy delivery records a deployment and advances the census', fu
         ->and($deployment->status)->toBe(DeploymentStatus::Succeeded)
         ->and($deployment->connection_id)->toBe($connection->id)
         ->and($environment->current_version)->toBe('1.4.0')
-        ->and(IngestEvent::query()->where('connection_id', $connection->id)->where('status', 'ingested')->count())->toBe(1);
+        ->and(IngestEvent::query()->where('connection_id', $connection->id)->where('status', 'ingested')->count())->toBe(1)
+        ->and(IngestEvent::query()->sole()->pipeline)->toBe(IngestPipeline::Deploy);
 });
 
 test('a forged deploy delivery is rejected and stores nothing', function (): void {
