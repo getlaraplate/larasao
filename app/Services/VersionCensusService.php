@@ -44,8 +44,10 @@ final readonly class VersionCensusService
      * Finds the release or creates it as observed. The insert runs in a savepoint: when a concurrent ingest
      * created the same release after the lookup, the unique key on (project_id, version) refuses this one,
      * the savepoint is rolled back without aborting the enclosing ingest transaction, and the winner's row is
-     * read with a locking read, which sees the latest committed row where a plain read inside the enclosing
-     * transaction would still see its snapshot (InnoDB, REPEATABLE READ).
+     * read with a shared locking read. Being a locking read, it sees the latest committed row where a plain read
+     * inside the enclosing transaction would still see its snapshot (InnoDB, REPEATABLE READ); being shared, it
+     * is compatible with the shared lock the refused insert already holds on that row, so several losers of the
+     * same new release do not deadlock asking for an exclusive lock the census does not need (it only reads).
      */
     private function release(int $projectId, string $version): Release
     {
@@ -62,7 +64,7 @@ final readonly class VersionCensusService
                 'status' => ReleaseStatus::Observed,
             ]));
         } catch (UniqueConstraintViolationException $exception) {
-            return Release::query()->where($attributes)->lockForUpdate()->first() ?? throw $exception;
+            return Release::query()->where($attributes)->sharedLock()->first() ?? throw $exception;
         }
     }
 }

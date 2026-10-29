@@ -21,6 +21,11 @@ use Modules\SAO\Services\VersionCensusService;
  */
 final readonly class SignalIngestService
 {
+    /**
+     * Attempts of the ingest transaction: the first, and two retries after a deadlock or a lock timeout.
+     */
+    private const int TRANSACTION_ATTEMPTS = 3;
+
     public function __construct(
         private GroupKeyResolver $groupKeyResolver,
         private VersionCensusService $versionCensus,
@@ -31,6 +36,13 @@ final readonly class SignalIngestService
      * occurrences of one group serialize on it: the count is incremented in SQL, and whatever is decided
      * from the signal's state inside the transaction sees the other occurrence's write.
      *
+     * The transaction is attempted up to {@see self::TRANSACTION_ATTEMPTS} times: when three or more
+     * ingests create one new signal at once, the losers of the unique key all hold a shared lock on the
+     * winner's row and then ask for the exclusive one, so InnoDB picks a deadlock victim. Laravel retries
+     * the whole attempt on such a concurrency error, and the retry finds the signal and waits on its lock.
+     * Laravel retries only an outermost transaction: nested in another one (reprocessing) the error is
+     * rethrown to that caller.
+     *
      * @param  array<string, mixed>  $payload
      * @param  CarbonInterface|null  $occurredAt  When the error originally happened; defaults to now. A replayed occurrence passes its original time: it widens the seen window both ways but never reopens a resolved signal, since an old event says nothing about the error being back.
      */
@@ -40,36 +52,48 @@ final readonly class SignalIngestService
         $occurredAt ??= now();
         $groupKey = $this->groupKeyResolver->resolve($payload);
 
-        return (new Signal)->getConnection()->transaction(function () use ($project, $payload, $occurredAt, $isReplay, $groupKey): Signal {
-            $signal = $this->existingSignal($project, $groupKey)
-                ?? $this->createSignal($project, $groupKey, $payload, $occurredAt);
+        return (new Signal)->getConnection()->transaction(
+            fn (): Signal => $this->recordIn($project, $payload, $occurredAt, $isReplay, $groupKey),
+            self::TRANSACTION_ATTEMPTS,
+        );
+    }
 
-            // Loop protection, layer 2: past the per-group cap within the window the
-            // signal stops recording occurrences, so a fast-looping error cannot
-            // flood the store. The signal itself still exists and stays visible. A
-            // signal another ingest created first is an existing one and is checked.
-            if (! $signal->wasRecentlyCreated && $this->rateLimitReached($signal)) {
-                return $signal;
-            }
+    /**
+     * The body of one ingest attempt. It reads and builds every model it touches, and changes nothing outside
+     * the transaction, so a retried attempt starts from what the database holds after the rollback.
+     *
+     * @param  array<string, mixed>  $payload
+     */
+    private function recordIn(Project $project, array $payload, CarbonInterface $occurredAt, bool $isReplay, string $groupKey): Signal
+    {
+        $signal = $this->existingSignal($project, $groupKey)
+            ?? $this->createSignal($project, $groupKey, $payload, $occurredAt);
 
-            $this->recordOccurrenceOn($signal, $occurredAt, $isReplay);
-
-            $census = $this->versionCensus->record(
-                $project->getKey(),
-                is_string($payload['version'] ?? null) ? $payload['version'] : null,
-            );
-
-            SignalOccurrence::query()->create([
-                'signal_id' => $signal->getKey(),
-                'environment' => is_string($payload['environment'] ?? null) ? $payload['environment'] : null,
-                'context' => is_array($payload['context'] ?? null) ? $payload['context'] : null,
-                'affected_version' => $census->affectedVersion,
-                'affected_release_id' => $census->release?->getKey(),
-                'occurred_at' => $occurredAt,
-            ]);
-
+        // Loop protection, layer 2: past the per-group cap within the window the
+        // signal stops recording occurrences, so a fast-looping error cannot
+        // flood the store. The signal itself still exists and stays visible. A
+        // signal another ingest created first is an existing one and is checked.
+        if (! $signal->wasRecentlyCreated && $this->rateLimitReached($signal)) {
             return $signal;
-        });
+        }
+
+        $this->recordOccurrenceOn($signal, $occurredAt, $isReplay);
+
+        $census = $this->versionCensus->record(
+            $project->getKey(),
+            is_string($payload['version'] ?? null) ? $payload['version'] : null,
+        );
+
+        SignalOccurrence::query()->create([
+            'signal_id' => $signal->getKey(),
+            'environment' => is_string($payload['environment'] ?? null) ? $payload['environment'] : null,
+            'context' => is_array($payload['context'] ?? null) ? $payload['context'] : null,
+            'affected_version' => $census->affectedVersion,
+            'affected_release_id' => $census->release?->getKey(),
+            'occurred_at' => $occurredAt,
+        ]);
+
+        return $signal;
     }
 
     /**
