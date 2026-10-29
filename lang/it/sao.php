@@ -278,7 +278,7 @@ return [
         'noHistoryYet' => 'Ancora nessuna cronologia.',
         'ownerAssigned' => 'Responsabile assegnato',
         'replayResult' => 'Riesecuzione (prova]: stato risultante ":status".',
-        'reprocessCounts' => 'Rielaborati in Ingested: :ingested, ancora senza corrispondenza: :unmatched, falliti: :failed, saltati: :skipped.',
+        'reprocessCounts' => 'Rielaborati come acquisiti: :ingested, ancora senza corrispondenza: :unmatched, falliti: :failed, saltati: :skipped.',
         'reprocessDone' => 'Rielaborazione terminata',
         'ticketNotFound' => 'Ticket non trovato o non visibile.',
         'transitionNotAllowed' => 'Transizione non consentita per questo ticket.',

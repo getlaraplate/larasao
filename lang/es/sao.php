@@ -278,7 +278,7 @@ return [
         'noHistoryYet' => 'Aún no hay historial.',
         'ownerAssigned' => 'Responsable asignado',
         'replayResult' => 'Reprocesado (simulación]: estado resultante «:status».',
-        'reprocessCounts' => 'Reprocesados como Ingested: :ingested, aún sin coincidencia: :unmatched, fallidos: :failed, omitidos: :skipped.',
+        'reprocessCounts' => 'Reprocesados como ingeridos: :ingested, aún sin coincidencia: :unmatched, fallidos: :failed, omitidos: :skipped.',
         'reprocessDone' => 'Reprocesado finalizado',
         'ticketNotFound' => 'Ticket no encontrado o no visible.',
         'transitionNotAllowed' => 'Esta transición no está permitida para este ticket.',

@@ -184,3 +184,10 @@ test('the bulk reprocess is hidden and refused for a user without the permission
     expect($event->fresh()->status)->toBe(IngestStatus::Uncorrelated)
         ->and($event->fresh()->reprocessed_at)->toBeNull();
 });
+
+test('the reprocess counts are worded in each locale without the English status name', function (string $locale): void {
+    $message = __('sao.messages.reprocessCounts', ['ingested' => 1, 'unmatched' => 0, 'failed' => 0, 'skipped' => 0], $locale);
+
+    expect($message)->not->toContain('Ingested')
+        ->and($message)->not->toContain('sao.messages');
+})->with(['de', 'es', 'it', 'sl']);

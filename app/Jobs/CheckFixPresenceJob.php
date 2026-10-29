@@ -19,8 +19,8 @@ use Modules\SAO\Services\FixPresenceService;
  * ({@see self::forChangeRef()}). It carries an id, not the model, so a record
  * deleted before the job runs makes it a no-op instead of a failure.
  *
- * Dispatched after commit by the `Environment` and `ChangeRef` saved hooks.
- * Rerunning it is safe: a known answer is not asked again.
+ * Dispatched after commit by the `Environment` and `ChangeRef` `created` and
+ * `updated` hooks. Rerunning it is safe: a known answer is not asked again.
  */
 final class CheckFixPresenceJob implements ShouldQueue
 {
