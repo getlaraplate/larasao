@@ -14,7 +14,8 @@ use Modules\Core\Overrides\Seeder;
  * The names are declared once in {@see \Modules\SAO\Authorization\SAOPermissions}
  * and created by `permission:refresh`, which runs before every module seeder in
  * the graph. This seeder keeps SAO seeded in isolation self-sufficient, which is
- * what the module test suites rely on.
+ * what the module test suites rely on. The seed graph runs it as a node of its own, so
+ * {@see SAODatabaseSeeder} does not call it.
  *
  * Only the domain verbs come through here. The CRUD ones (`select`, `insert`,
  * `update`, `delete` and the rest) belong to `permission:refresh`, which
@@ -30,10 +31,17 @@ final class SAOPermissionSeeder extends Seeder
             return;
         }
 
-        foreach (app(PermissionManifest::class)->namesFor('SAO') as $name) {
-            $permission_model->newQuery()->firstOrCreate(['name' => $name]);
+        $this->logOperation(Permission::class);
+
+        $names = app(PermissionManifest::class)->namesFor('SAO');
+        $created = 0;
+
+        foreach ($names as $name) {
+            if ($permission_model->newQuery()->firstOrCreate(['name' => $name])->wasRecentlyCreated) {
+                $created++;
+            }
         }
 
-        $this->command?->line('    - SAO domain permissions <fg=green>updated</>');
+        $this->logOutcome($created, 0, count($names) - $created);
     }
 }
