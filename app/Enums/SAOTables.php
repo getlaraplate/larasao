@@ -43,4 +43,6 @@ enum SAOTables: string
     case TicketLinks = 'sao_ticket_links';
     case SyncOperations = 'sao_sync_operations';
     case ImportRuns = 'sao_import_runs';
+    case CorrelationRules = 'sao_correlation_rules';
+    case FixPresences = 'sao_fix_presences';
 }

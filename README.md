@@ -83,6 +83,8 @@ floored at 1 where they are read, so a stored `0` behaves as `1`; the one except
 | `signals.window_minutes` | `60` | Length of that rolling window, in minutes. |
 | `signals.auto_open.enabled` | `false` | Whether `sao:signals:auto-open` is registered on the scheduler (read when a console process boots). The command is always runnable manually. |
 | `signals.auto_open.min_occurrences` | `1` | Minimum occurrences before a signal auto-opens a ticket. |
+| `signals.recurrence_comment.enabled` | `true` | Whether a recurring error comments on its signal's ticket (see below). |
+| `signals.recurrence_comment.cooldown_minutes` | `60` | Minimum minutes between two recurrence comments on a ticket for one signal; read as at least `1`. |
 | `release_health.window_days` | `7` | How many days after a release its signals are attributed to it when judging release health. |
 | `release_health.regression_rate_factor` | `1.5` | A pre-existing signal counts as regressed only when its in-window count exceeds its baseline count by this factor (minimum `1.0`). |
 | `release_health.regression_min_occurrences` | `3` | Minimum in-window occurrences before a pre-existing signal can be flagged as regressed (noise floor). |
@@ -97,6 +99,8 @@ Environment variables (all optional; the defaults are production-safe):
 | `SAO_SYNC_CRON` | `0 * * * *` | Cron expression for the scheduled inbound issue poll. |
 | `SAO_HEALTH_SCHEDULE` | `false` | Whether `sao:connection:health` runs on the scheduler. The command is always runnable manually. |
 | `SAO_HEALTH_CRON` | `*/15 * * * *` | Cron expression for the scheduled connection health probe. |
+| `SAO_PROBE_SCHEDULE` | `false` | Whether `sao:census:probe` runs on the scheduler. The command is always runnable manually. |
+| `SAO_PROBE_CRON` | `0 */6 * * *` | Cron expression for the scheduled census probe. |
 | `SAO_RETENTION_SCHEDULE` | `false` | Whether `sao:prune` runs on the scheduler. The command is always runnable manually (with `--dry-run`). |
 | `SAO_RETENTION_CRON` | `0 3 * * *` | Cron expression for the scheduled prune. |
 | `SAO_RETENTION_OCCURRENCES_DAYS` | `90` | Delete signal occurrences older than this many days (the signal and its counters are kept). |
@@ -135,6 +139,57 @@ Two transports feed the same writer:
 over non-terminal tickets. By default it only **proposes** a close; turn the
 `closure.auto_close.enabled` Setting on to let a satisfied `close` policy actually close the
 ticket (through `WorkflowService`, audited and auto-reversible on recurrence).
+
+### Recurrence comment
+
+When an occurrence is recorded on a signal that has a ticket, the ticket gets one system comment, as
+long as the ticket's status category is not terminal (`closed` or `rejected`: the closure engine
+handles those), the setting `signals.recurrence_comment.enabled` is on, the occurrence was not
+dropped by the loop protection cap, and the previous recurrence comment of that signal on that
+ticket is older than `signals.recurrence_comment.cooldown_minutes` (or there is none). The comment
+is posted by automation (origin `system`, source key `signal-recurrence:{signal id}`), so it cannot
+be edited. Its body is plain text and deterministic: how many occurrences were recorded since the
+previous recurrence comment (or since the ticket was created), the first and last time they
+occurred, and the distinct environments and versions seen. The cooldown is measured against the
+current time, so reprocessing many old events of one signal posts at most one comment. Pushing the
+comment to an external tracker is not done.
+
+### Fix containment
+
+For every fix (a `Fixes` change ref with a commit) and every environment that reports a
+`current_commit`, SAO asks the project's `vcs` binding whether the running commit contains the fix
+and stores the answer as a fix presence: contained, not contained, or unknown when the VCS could
+not tell. The ticket view shows the contained and not-contained environments; an unknown answer
+is never shown as "not contained". Closure still decides on the release version only.
+
+The check runs on its own, queued, whenever an environment's commit changes (a deploy, a probe,
+a live occurrence) or a fix gains a commit. A known answer is never asked again for the same
+commit. An unknown answer is asked again on the next such change; there is no schedule, so to
+retry unknown answers or to backfill run:
+
+```bash
+php artisan sao:fix:check {project?}
+```
+
+`{project}` is a key prefix (all projects without it). The command prints how many presences it
+wrote and exits `1` on an unknown project. A project without a usable `vcs` binding writes
+nothing.
+
+## Reprocessing ingest events
+
+An ingest event that did not become a signal (`discarded`, `uncorrelated` or
+`failed`, from a `profile` or `logs` delivery) can be replayed on its own row once
+a correlation rule, source profile or `logs` binding has been fixed:
+
+```bash
+php artisan sao:ingest:reprocess {event?} {--status=} {--connection=} {--since=} {--dry-run}
+```
+
+`--dry-run` reports what each event would become and writes nothing. The ingest
+event list in the backoffice offers the same as a **Reprocess** row and bulk
+action, gated by the `reprocess` permission. The occurrence keeps the event's
+original time, and a `Resolved` signal is never reopened by a replay. Events older
+than `SAO_RETENTION_INGEST_DAYS` have been pruned and can no longer be reprocessed.
 
 ## Migrating from an external tracker
 
@@ -223,8 +278,10 @@ Design: `docs/superpowers/specs/2026-07-31-sao-module-design.md` in the applicat
     gate). `ReleaseHealthService` judges whether a release introduced new or
     worsening signals versus the previous release over an equal window;
     `DeploymentIngestService` records a durable, idempotent deploy history
-    (`sao_deployments`) that makes the environment version census a projection and
-    gives release health a precise per-deploy anchor. Plan:
+    (`sao_deployments`) that makes the environment version census a projection of
+    the succeeded deployments (kept fresh between deploys by live error occurrences
+    and the census probe, see Deployments) and gives release health a precise
+    per-deploy anchor. Plan:
     `docs/plans/release-health-and-deploy-ingest.md`.
 
 ### Deployments
@@ -238,6 +295,38 @@ any external integration (CLI-only CD steps, replay) with:
 ```bash
 php artisan sao:deploy:record {project} {version} --env=production --status=succeeded --external-id=ci-run-42
 ```
+
+A deployment's `meta.sha` and `meta.ref` become the environment's commit and branch only when
+the sha is 7 to 64 hexadecimal characters (stored lowercase) and the branch is non-empty and at
+most 255 characters; otherwise the stored commit and branch are kept.
+
+Live error occurrences feed the same census between deploys. An occurrence that names an
+environment the project already has, and reports a version, stamps that environment with:
+
+-   the version only when it resolves to a release of the project, through the same
+    normalization as the version census (`v1.4.0` and `1.4.0 (build 123)` stamp `1.4.0`, the
+    release's version); a version that resolves to no release (`nightly`) writes nothing;
+-   the commit only when it is a valid sha and the branch only when it fits its column, with the
+    same rules as a deployment;
+-   at most one write per minute while version, commit and branch are unchanged.
+
+An occurrence never creates an environment, a rate-limited occurrence feeds nothing, and a
+replayed or reprocessed occurrence never touches the census.
+
+### Census probe
+
+`php artisan sao:census:probe {project?}` asks each environment which version it is running and
+records the answer in the deploy census (`current_version`, plus `current_commit` and
+`current_branch` when the endpoint reports them, and `last_seen_at`). `{project}` is the
+project's key prefix; omit it to probe every project. Only projects with a `probe` binding are
+asked (the `http-version` driver), and only environments that carry an operator-set `base_url`.
+
+The command prints one line per environment and exits non-zero if any environment failed. A
+failed probe (unreachable, bad status, no usable version, a value longer than its 255-character
+column) is reported and leaves that environment unchanged, so it ages out through the census TTL
+instead of looking fresh. One failing environment never stops the others. The run is off the
+scheduler by default; enable it with `SAO_PROBE_SCHEDULE=true` (every six hours unless
+`SAO_PROBE_CRON` says otherwise).
 
 Deploys can also arrive as a **push webhook** through the `deploy` capability at
 `POST api/v1/webhooks/{connection}` (the same endpoint the `logs` push uses; the

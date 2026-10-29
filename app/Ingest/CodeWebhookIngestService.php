@@ -11,6 +11,7 @@ use Modules\SAO\Drivers\DriverRegistry;
 use Modules\SAO\Drivers\Support\BindingContext;
 use Modules\SAO\Drivers\Support\ConnectionCredentialResolver;
 use Modules\SAO\Enums\Capability;
+use Modules\SAO\Enums\IngestPipeline;
 use Modules\SAO\Enums\IngestStatus;
 use Modules\SAO\Models\Connection;
 use Modules\SAO\Models\IngestEvent;
@@ -109,6 +110,7 @@ final readonly class CodeWebhookIngestService
     {
         IngestEvent::query()->create([
             'connection_id' => $connection->getKey(),
+            'pipeline' => IngestPipeline::Code,
             'delivery_id' => $deliveryId,
             'payload' => $payload,
             'status' => $status,

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\SAO\Tests\Support\Drivers;
 
+use ArrayObject;
 use Modules\SAO\Drivers\Contracts\DriverInterface;
 use Modules\SAO\Drivers\Contracts\ReleasesCapability;
 use Modules\SAO\Drivers\Contracts\VcsCapability;
@@ -21,19 +22,50 @@ use Override;
  * construction and `firstTagContaining` a fixed tag, so the pull-scan attribution
  * pipeline can be exercised offline. Register it in the {@see \Modules\SAO\Drivers\DriverRegistry}
  * and point a connection's `driver_key` at {@see key()}.
+ *
+ * `containsCommit` answers the tri-state set at construction (true, false, or null for
+ * "cannot tell") and records each call, so a test can assert how many VCS calls were
+ * made and with which arguments.
  */
 final readonly class StubVcsDriver implements DriverInterface, ReleasesCapability, VcsCapability
 {
     /**
+     * @var ArrayObject<int, array{sha: string, ref: string}>
+     */
+    private ArrayObject $containsCommitCalls;
+
+    /**
      * @param  list<array<string, mixed>>  $commits
      * @param  list<string>  $tags  tags returned by tags(); defaults to just $tag
+     * @param  bool|null  $containsCommit  the answer of containsCommit(); null means "cannot tell"
      */
     public function __construct(
         private array $commits = [],
         private ?string $tag = null,
         private string $key = 'stub-vcs',
         private array $tags = [],
-    ) {}
+        private ?bool $containsCommit = null,
+    ) {
+        $this->containsCommitCalls = new ArrayObject;
+    }
+
+    /**
+     * How many times containsCommit() was called.
+     */
+    public function containsCommitCallCount(): int
+    {
+        return $this->containsCommitCalls->count();
+    }
+
+    /**
+     * The arguments of every containsCommit() call, in order.
+     *
+     * @return list<array{sha: string, ref: string}>
+     */
+    public function containsCommitCalls(): array
+    {
+        return array_values($this->containsCommitCalls->getArrayCopy());
+    }
 
     #[Override]
     public function key(): string
@@ -84,6 +116,14 @@ final readonly class StubVcsDriver implements DriverInterface, ReleasesCapabilit
     public function compare(BindingContext $context, string $base, string $head): array
     {
         return [];
+    }
+
+    #[Override]
+    public function containsCommit(BindingContext $context, string $sha, string $ref): ?bool
+    {
+        $this->containsCommitCalls[] = ['sha' => $sha, 'ref' => $ref];
+
+        return $this->containsCommit;
     }
 
     #[Override]

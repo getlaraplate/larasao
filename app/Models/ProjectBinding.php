@@ -4,11 +4,14 @@ declare(strict_types=1);
 
 namespace Modules\SAO\Models;
 
+use Illuminate\Database\Eloquent\Attributes\Scope;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Modules\Core\Contracts\IsPartOfParent;
 use Modules\Core\Overrides\Model;
 use Modules\SAO\Database\Factories\ProjectBindingFactory;
+use Modules\SAO\Drivers\Contracts\DriverInterface;
 use Modules\SAO\Drivers\Support\BindingContext;
 use Modules\SAO\Drivers\Support\ConnectionCredentialResolver;
 use Modules\SAO\Enums\Capability;
@@ -77,13 +80,21 @@ final class ProjectBinding extends Model implements IsPartOfParent
      * Build the resolved view a capability call operates on: the connection
      * (base URL + resolved credentials) plus this binding's remote identifier,
      * config and maps.
+     *
+     * Given the `$driver` the binding runs on, the credentials are resolved through
+     * {@see ConnectionCredentialResolver::resolveFor()}, so a driver whose schema
+     * declares no required secret works with a connection that holds none. Without
+     * it the credentials are resolved strictly.
      */
-    public function bindingContext(ConnectionCredentialResolver $resolver): BindingContext
+    public function bindingContext(ConnectionCredentialResolver $resolver, ?DriverInterface $driver = null): BindingContext
     {
         $connection = $this->remoteConnection;
+        $credentials = $driver instanceof DriverInterface
+            ? $resolver->resolveFor($connection, $driver)
+            : $resolver->resolve($connection);
 
         return new BindingContext(
-            $connection->connectionContext($resolver->resolve($connection)),
+            $connection->connectionContext($credentials),
             remoteIdentifier: $this->remote_identifier,
             config: $this->config ?? [],
             statusMap: $this->status_map ?? [],
@@ -138,6 +149,20 @@ final class ProjectBinding extends Model implements IsPartOfParent
     protected static function newFactory(): Factory
     {
         return ProjectBindingFactory::new();
+    }
+
+    /**
+     * Bindings whose project still exists. Deleting a project is a soft delete that
+     * does not cascade to its bindings, so a binding can outlive its project; code
+     * that walks bindings to route or act on a project uses this scope to ignore them.
+     *
+     * @param  Builder<static>  $query
+     * @return Builder<static>
+     */
+    #[Scope]
+    protected function ofLiveProject(Builder $query): Builder
+    {
+        return $query->whereHas('project');
     }
 
     /**

@@ -10,7 +10,8 @@ use Modules\SAO\Drivers\Support\BindingContext;
 /**
  * The battery every `vcs` driver must pass (spec §12): commits paginate and
  * carry a sha, a comparison returns a payload, a file reads at a ref (and a
- * missing one is null), and a pull/merge request can be opened.
+ * missing one is null), a pull/merge request can be opened, and a ref reports
+ * whether it contains a commit.
  */
 final class VcsConformance
 {
@@ -20,6 +21,16 @@ final class VcsConformance
         self::assertCompareReturnsPayload($driver, $context);
         self::assertFileAtRef($driver, $context);
         self::assertOpensPullRequest($driver, $context);
+        self::assertContainsCommit($driver, $context);
+    }
+
+    /**
+     * A commit the ref contains answers true; the answer is a tri-state, never a
+     * throw, so a caller can tell "no" (false) from "cannot tell" (null).
+     */
+    public static function assertContainsCommit(VcsCapability $driver, BindingContext $context): void
+    {
+        expect($driver->containsCommit($context, 'abc1234', 'main'))->toBeTrue();
     }
 
     private static function assertCommitsPaginate(VcsCapability $driver, BindingContext $context): void

@@ -26,6 +26,21 @@ final readonly class DriverConfigurationSchema
         ));
     }
 
+    /**
+     * Whether a connection of this driver may hold no secret at all: no field is
+     * both secret and required (an unauthenticated probe, an in-process driver).
+     */
+    public function credentialOptional(): bool
+    {
+        foreach ($this->secretFields() as $field) {
+            if ($field->required) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     public function field(string $name): ?ConfigurationField
     {
         foreach ($this->fields as $field) {

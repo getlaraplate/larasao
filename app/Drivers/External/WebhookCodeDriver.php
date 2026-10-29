@@ -126,6 +126,7 @@ final readonly class WebhookCodeDriver implements CodeEventCapability, DriverInt
                 mergedAt: $this->dateOrNull($row['merged_at'] ?? null),
                 baseRef: self::stringOrNull($row['base_ref'] ?? null),
                 headRef: self::stringOrNull($row['head_ref'] ?? null),
+                commitSha: self::stringOrNull($row['commit_sha'] ?? null),
             );
         }
 
@@ -150,5 +151,4 @@ final readonly class WebhookCodeDriver implements CodeEventCapability, DriverInt
     {
         return is_string($value) && $value !== '' ? Carbon::parse($value) : null;
     }
-
 }

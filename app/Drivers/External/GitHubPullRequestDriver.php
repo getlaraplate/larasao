@@ -25,7 +25,9 @@ use Override;
  * sha256=<hex>`) over the raw body. Only a *merged* pull request produces a
  * {@see CodeReference} (a merged PR is the resolution evidence; opened/closed-
  * without-merge events unpack to nothing). The PR title and body are the text the
- * attribution writer scans for ticket keys.
+ * attribution writer scans for ticket keys. The merge commit sha is read only from
+ * a merged PR: on an open one GitHub's `merge_commit_sha` is a test-merge commit no
+ * environment contains.
  */
 final readonly class GitHubPullRequestDriver implements CodeEventCapability, DriverInterface
 {
@@ -127,6 +129,7 @@ final readonly class GitHubPullRequestDriver implements CodeEventCapability, Dri
             mergedAt: $this->dateOrNull($pr['merged_at'] ?? null),
             baseRef: $this->ref($pr['base'] ?? null),
             headRef: $this->ref($pr['head'] ?? null),
+            commitSha: self::stringOrNull($pr['merge_commit_sha'] ?? null),
         )];
     }
 
@@ -153,5 +156,4 @@ final readonly class GitHubPullRequestDriver implements CodeEventCapability, Dri
     {
         return is_string($value) && $value !== '' ? Carbon::parse($value) : null;
     }
-
 }

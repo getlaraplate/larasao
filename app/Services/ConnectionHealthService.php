@@ -18,8 +18,10 @@ use Throwable;
  * It is the one place that turns a stored {@see Connection} into a live probe:
  * it resolves the secret through {@see ConnectionCredentialResolver}, builds the
  * driver's {@see \Modules\SAO\Drivers\Support\ConnectionContext}, and asks the
- * driver. A missing credential, an unknown driver, or any thrown error becomes
- * an `unhealthy` result rather than an exception into the caller.
+ * driver. A driver whose schema declares no required secret is checked even when
+ * the connection holds none ({@see ConnectionCredentialResolver::resolveFor()}). A
+ * missing required credential, an unknown driver, or any thrown error becomes an
+ * `unhealthy` result rather than an exception into the caller.
  */
 final readonly class ConnectionHealthService
 {
@@ -31,8 +33,9 @@ final readonly class ConnectionHealthService
     public function check(Connection $connection): HealthCheckResult
     {
         try {
-            $context = $connection->connectionContext($this->resolver->resolve($connection));
-            $result = $connection->driver($this->registry)->healthCheck($context);
+            $driver = $connection->driver($this->registry);
+            $context = $connection->connectionContext($this->resolver->resolveFor($connection, $driver));
+            $result = $driver->healthCheck($context);
         } catch (Throwable $exception) {
             $result = HealthCheckResult::unhealthy($exception->getMessage());
         }

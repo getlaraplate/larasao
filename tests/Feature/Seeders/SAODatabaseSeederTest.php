@@ -15,7 +15,7 @@ it('seeds the SAO runtime settings stamped with the SAO module', function (): vo
 
     $settings = Setting::query()->withoutGlobalScopes()->whereIn('name', $names)->get();
 
-    expect($settings)->toHaveCount(9)
+    expect($settings)->toHaveCount(11)
         ->and($settings->pluck('module')->unique()->all())->toBe(['SAO']);
 });
 
@@ -33,5 +33,5 @@ it('is idempotent and leaves an operator-changed value untouched on a second run
 
     expect($setting->value)->toBe(15)
         ->and($setting->description)->toBe('Length of the signal occurrence rolling window, in minutes')
-        ->and(Setting::query()->withoutGlobalScopes()->where('module', 'SAO')->count())->toBe(9);
+        ->and(Setting::query()->withoutGlobalScopes()->where('module', 'SAO')->count())->toBe(11);
 });

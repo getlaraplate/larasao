@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\SAO\Drivers\External;
 
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Support\Facades\Http;
 use Modules\SAO\Drivers\Contracts\DriverInterface;
@@ -17,6 +18,7 @@ use Modules\SAO\Drivers\Support\DriverConfigurationSchema;
 use Modules\SAO\Drivers\Support\HealthCheckResult;
 use Modules\SAO\Drivers\Support\NormalizedIssue;
 use Modules\SAO\Drivers\Support\Page;
+use Modules\SAO\Drivers\Support\ReadsCommitShas;
 use Modules\SAO\Drivers\Support\ReadsExternalPayloads;
 use Modules\SAO\Enums\Capability;
 use Modules\SAO\Enums\IngestMode;
@@ -32,6 +34,7 @@ use Throwable;
  */
 final readonly class BitbucketDriver implements DriverInterface, IssuesCapability, ReleasesCapability, VcsCapability
 {
+    use ReadsCommitShas;
     use ReadsExternalPayloads;
 
     private const int DEFAULT_PAGE_SIZE = 20;
@@ -283,9 +286,37 @@ final readonly class BitbucketDriver implements DriverInterface, IssuesCapabilit
     }
 
     /**
-     * Best-effort over the first page of tags: the first tag whose diffstat
-     * against the commit is non-empty (the tag differs from / is ahead of the
-     * commit). Bitbucket exposes no single "tags containing commit" endpoint.
+     * The merge base of `$sha` and `$ref` (the `merge-base/{sha}..{ref}` endpoint,
+     * `hash` in the answer) is `$sha` itself when the ref contains the commit.
+     * Bitbucket answers 404 for an unknown repository, commit or ref; that, any other
+     * error, a network failure and an answer without a `hash` are null. A sha shorter
+     * than seven characters or not hexadecimal is not asked about; a shorter sha
+     * matches the full merge base by prefix.
+     */
+    #[Override]
+    public function containsCommit(BindingContext $context, string $sha, string $ref): ?bool
+    {
+        if (! self::isUsableSha($sha) || $ref === '') {
+            return null;
+        }
+
+        try {
+            $response = $this->connection($context)->get(
+                $this->repoPath($context) . '/merge-base/' . rawurlencode($sha) . '..' . rawurlencode($ref),
+            );
+        } catch (ConnectionException) {
+            return null;
+        }
+
+        $mergeBase = $response->successful() ? self::stringOrNull($response->json('hash')) : null;
+
+        return $mergeBase === null ? null : self::sameCommit($sha, $mergeBase);
+    }
+
+    /**
+     * Best-effort over the first page of tags: the first tag that contains the commit
+     * ({@see containsCommit()} is true; a tag it cannot tell about is skipped).
+     * Bitbucket exposes no single "tags containing commit" endpoint.
      */
     #[Override]
     public function firstTagContaining(BindingContext $context, string $commitSha): ?string
@@ -293,13 +324,7 @@ final readonly class BitbucketDriver implements DriverInterface, IssuesCapabilit
         foreach ($this->tags($context)->items as $tag) {
             $name = self::stringOr($tag['tag'] ?? '');
 
-            if ($name === '') {
-                continue;
-            }
-
-            $values = $this->compare($context, $commitSha, $name)['values'] ?? null;
-
-            if (is_array($values) && $values !== []) {
+            if ($name !== '' && $this->containsCommit($context, $commitSha, $name) === true) {
                 return $name;
             }
         }

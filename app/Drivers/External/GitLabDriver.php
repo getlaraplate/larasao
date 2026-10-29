@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\SAO\Drivers\External;
 
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Support\Facades\Http;
 use Modules\SAO\Drivers\Contracts\DriverInterface;
@@ -17,6 +18,7 @@ use Modules\SAO\Drivers\Support\DriverConfigurationSchema;
 use Modules\SAO\Drivers\Support\HealthCheckResult;
 use Modules\SAO\Drivers\Support\NormalizedIssue;
 use Modules\SAO\Drivers\Support\Page;
+use Modules\SAO\Drivers\Support\ReadsCommitShas;
 use Modules\SAO\Drivers\Support\ReadsExternalPayloads;
 use Modules\SAO\Enums\Capability;
 use Modules\SAO\Enums\IngestMode;
@@ -32,6 +34,7 @@ use Throwable;
  */
 final readonly class GitLabDriver implements DriverInterface, IssuesCapability, ReleasesCapability, VcsCapability
 {
+    use ReadsCommitShas;
     use ReadsExternalPayloads;
 
     private const int DEFAULT_PAGE_SIZE = 20;
@@ -299,9 +302,39 @@ final readonly class GitLabDriver implements DriverInterface, IssuesCapability, 
     }
 
     /**
-     * Best-effort over the first page of tags: the first tag whose comparison
-     * from the commit yields commits (the tag is ahead of the commit, so it
-     * contains it). GitLab exposes no single "tags containing commit" endpoint.
+     * The merge base of `$sha` and `$ref` is `$sha` itself when the ref contains the
+     * commit (the repository merge-base endpoint, `id` in the answer). GitLab answers
+     * 404 for an unknown commit or ref, and also when two histories share no base, so
+     * those, any other error, a network failure and an answer without an `id` are null.
+     * A sha shorter than seven characters or not hexadecimal is not asked about; a
+     * shorter sha matches the full merge base by prefix.
+     */
+    #[Override]
+    public function containsCommit(BindingContext $context, string $sha, string $ref): ?bool
+    {
+        if (! self::isUsableSha($sha) || $ref === '') {
+            return null;
+        }
+
+        // `refs[]` is spelled out: a query array would be sent as `refs[0]`, which GitLab
+        // reads as a hash rather than the list of refs.
+        $url = $this->repositoryPath($context) . '/merge_base?refs%5B%5D=' . rawurlencode($sha) . '&refs%5B%5D=' . rawurlencode($ref);
+
+        try {
+            $response = $this->connection($context)->get($url);
+        } catch (ConnectionException) {
+            return null;
+        }
+
+        $mergeBase = $response->successful() ? self::stringOrNull($response->json('id')) : null;
+
+        return $mergeBase === null ? null : self::sameCommit($sha, $mergeBase);
+    }
+
+    /**
+     * Best-effort over the first page of tags: the first tag that contains the commit
+     * ({@see containsCommit()} is true; a tag it cannot tell about is skipped).
+     * GitLab exposes no single "tags containing commit" endpoint.
      */
     #[Override]
     public function firstTagContaining(BindingContext $context, string $commitSha): ?string
@@ -309,13 +342,7 @@ final readonly class GitLabDriver implements DriverInterface, IssuesCapability, 
         foreach ($this->tags($context)->items as $tag) {
             $name = self::stringOr($tag['tag'] ?? '');
 
-            if ($name === '') {
-                continue;
-            }
-
-            $commits = $this->compare($context, $commitSha, $name)['commits'] ?? null;
-
-            if (is_array($commits) && $commits !== []) {
+            if ($name !== '' && $this->containsCommit($context, $commitSha, $name) === true) {
                 return $name;
             }
         }

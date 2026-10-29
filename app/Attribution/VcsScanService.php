@@ -85,6 +85,7 @@ final readonly class VcsScanService
                     text: (string) ($commit['message'] ?? ''),
                     url: isset($commit['url']) ? (string) $commit['url'] : null,
                     source: $driver->key(),
+                    commitSha: $sha,
                 ));
 
                 $unknownKeys = [...$unknownKeys, ...$outcome->unknownKeys];

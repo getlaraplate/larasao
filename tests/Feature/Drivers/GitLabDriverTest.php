@@ -103,6 +103,11 @@ function fakeGitLab(): void
             return Http::response(['commits' => [['id' => 'c1']], 'diffs' => []]);
         }
 
+        if ($path === '/api/v4/projects/42/repository/merge_base' && $method === 'GET') {
+            // The merge base of a commit and a later ref is the commit itself, full length.
+            return Http::response(['id' => mb_str_pad((string) ($query['refs'][0] ?? ''), 40, '0')]);
+        }
+
         if (str_starts_with($path, '/api/v4/projects/42/repository/files/')) {
             $file = rawurldecode(mb_substr($path, mb_strlen('/api/v4/projects/42/repository/files/')));
 
@@ -211,4 +216,96 @@ test('it normalizes a gitlab issue into the canonical shape', function (): void 
         ->and($issue['remote_status'])->toBe('opened')
         ->and($issue['assignee'])->toBe('gluser')
         ->and($issue['url'])->toBe('https://gitlab.com/acme/widgets/-/issues/2');
+});
+
+/**
+ * @param  array<string, mixed>|string  $body
+ */
+function fakeGitLabMergeBase(array|string $body, int $status = 200): void
+{
+    Http::fake(['gitlab.com/api/v4/projects/42/repository/merge_base*' => Http::response($body, $status)]);
+}
+
+test('gitlab tells that a ref contains a commit when the merge base is the commit', function (): void {
+    $sha = str_repeat('a', 40);
+    fakeGitLabMergeBase(['id' => $sha]);
+
+    expect((new GitLabDriver)->containsCommit(gitlabContext(), $sha, 'main'))->toBeTrue();
+
+    Http::assertSent(static function (Request $request) use ($sha): bool {
+        parse_str((string) parse_url($request->url(), PHP_URL_QUERY), $query);
+
+        return $request->method() === 'GET' && ($query['refs'] ?? null) === [$sha, 'main'];
+    });
+});
+
+test('gitlab tells that a ref does not contain a commit when the merge base is another commit', function (): void {
+    fakeGitLabMergeBase(['id' => str_repeat('b', 40)]);
+
+    expect((new GitLabDriver)->containsCommit(gitlabContext(), str_repeat('a', 40), 'main'))->toBeFalse();
+});
+
+test('gitlab matches a short sha against the full merge base, in any letter case', function (): void {
+    fakeGitLabMergeBase(['id' => 'ABC1234' . str_repeat('0', 33)]);
+
+    expect((new GitLabDriver)->containsCommit(gitlabContext(), 'abc1234', 'main'))->toBeTrue()
+        ->and((new GitLabDriver)->containsCommit(gitlabContext(), 'ABC1234', 'main'))->toBeTrue()
+        ->and((new GitLabDriver)->containsCommit(gitlabContext(), 'abc1235', 'main'))->toBeFalse();
+});
+
+test('gitlab cannot tell for an unknown commit, a server error or an unexpected shape', function (int $httpStatus, array|string $body): void {
+    fakeGitLabMergeBase($body, $httpStatus);
+
+    expect((new GitLabDriver)->containsCommit(gitlabContext(), 'abc1234', 'main'))->toBeNull();
+})->with([
+    'unknown commit' => [404, ['message' => '404 Commit Not Found']],
+    'bad request' => [400, ['message' => 'bad']],
+    'server error' => [500, ['message' => 'boom']],
+    'no id' => [200, ['title' => 'x']],
+    'array id' => [200, ['id' => ['x']]],
+    'not json' => [200, '<html></html>'],
+]);
+
+test('gitlab cannot tell when the network fails', function (): void {
+    Http::fake(['gitlab.com/*' => Http::failedConnection()]);
+
+    expect((new GitLabDriver)->containsCommit(gitlabContext(), 'abc1234', 'main'))->toBeNull();
+});
+
+test('gitlab asks nothing for a sha shorter than seven characters or not hexadecimal', function (string $sha): void {
+    Http::fake();
+
+    expect((new GitLabDriver)->containsCommit(gitlabContext(), $sha, 'main'))->toBeNull();
+
+    Http::assertNothingSent();
+})->with(['', 'abc123', 'not-a-sha', 'abc123g']);
+
+test('gitlab url-encodes a ref that contains a slash', function (): void {
+    fakeGitLabMergeBase(['id' => str_repeat('a', 40)]);
+
+    (new GitLabDriver)->containsCommit(gitlabContext(), str_repeat('a', 40), 'release/1.0');
+
+    Http::assertSent(static fn (Request $request): bool => str_contains($request->url(), 'release%2F1.0'));
+});
+
+test('gitlab first tag containing a commit skips a diverged tag and an unknown one', function (): void {
+    $sha = str_repeat('a', 40);
+    Http::fake([
+        'gitlab.com/api/v4/projects/42/repository/tags*' => Http::response([
+            ['name' => 'v1.0.0', 'commit' => ['id' => 's1']],
+            ['name' => 'v1.1.0', 'commit' => ['id' => 's2']],
+            ['name' => 'v2.0.0', 'commit' => ['id' => 's3']],
+        ]),
+        'gitlab.com/api/v4/projects/42/repository/merge_base*' => static function (Request $request) use ($sha) {
+            parse_str((string) parse_url($request->url(), PHP_URL_QUERY), $query);
+
+            return match ($query['refs'][1] ?? null) {
+                'v1.0.0' => Http::response(['id' => str_repeat('b', 40)]),
+                'v1.1.0' => Http::response(['message' => '404'], 404),
+                default => Http::response(['id' => $sha]),
+            };
+        },
+    ]);
+
+    expect((new GitLabDriver)->firstTagContaining(gitlabContext(), $sha))->toBe('v2.0.0');
 });

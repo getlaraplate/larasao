@@ -31,6 +31,6 @@ final class ReleasesConformance
 
         expect($pages)->toBeGreaterThan(1)
             ->and($tags)->not->toContain(null)
-            ->and($driver->firstTagContaining($context, 'abc123'))->toBeString();
+            ->and($driver->firstTagContaining($context, 'abc1234'))->toBeString();
     }
 }

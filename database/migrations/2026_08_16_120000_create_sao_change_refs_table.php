@@ -35,11 +35,14 @@ return new class extends Migration
                 ->comment('A pull request base branch/sha, for comparing its changed files');
             $table->string('head_ref')->nullable()
                 ->comment('A pull request head branch/sha');
+            $table->string('commit_sha')->nullable()
+                ->comment('The commit an environment can contain to carry this change: a commit\'s own sha, a merged pull request\'s merge commit');
 
             MigrateUtils::timestamps($table, hasCreateUpdate: true, hasSoftDelete: true);
 
             $table->unique(['ticket_id', 'type', 'identifier'], "{$table_name}_triple_UN");
             $table->index('identifier', "{$table_name}_identifier_IDX");
+            $table->index('commit_sha', "{$table_name}_commit_sha_IDX");
         });
     }
 

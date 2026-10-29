@@ -121,7 +121,8 @@ final readonly class GraylogDriver implements DriverInterface, LogsCapability
                 'source' => $this->key(),
                 'message' => $message,
                 'level' => self::stringOrNull($row['level'] ?? $event['priority'] ?? null),
-                'environment' => self::stringOrNull($row['source'] ?? $event['source'] ?? null),
+                'server_host' => self::stringOrNull($row['source'] ?? $event['source'] ?? null),
+                'request_url' => self::stringOrNull(is_array($row['fields'] ?? null) ? ($row['fields']['application_url'] ?? null) : null),
                 'occurred_at' => self::stringOrNull($row['timestamp'] ?? $event['timestamp'] ?? null),
                 'raw' => $row,
             ];
@@ -149,5 +150,4 @@ final readonly class GraylogDriver implements DriverInterface, LogsCapability
 
         return null;
     }
-
 }

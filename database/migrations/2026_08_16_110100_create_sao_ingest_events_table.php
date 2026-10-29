@@ -6,6 +6,7 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 use Modules\Core\Helpers\MigrateUtils;
+use Modules\SAO\Enums\IngestPipeline;
 use Modules\SAO\Enums\IngestStatus;
 use Modules\SAO\Enums\SAOTables;
 
@@ -21,6 +22,8 @@ return new class extends Migration
                 ->comment('Null for the internal (host-app) source')
                 ->constrained(SAOTables::Connections->value, 'id', "{$table_name}_connection_FK")
                 ->nullOnDelete();
+            $table->string('pipeline')->default(IngestPipeline::Profile->value)
+                ->comment('The ingest path that recorded the event: profile, logs, deploy or code');
             $table->string('delivery_id')->comment('The id the source assigned to this delivery');
             $table->json('payload');
             $table->foreignId('source_profile_id')->nullable()
@@ -35,6 +38,8 @@ return new class extends Migration
             $table->foreignId('signal_id')->nullable()
                 ->constrained(SAOTables::Signals->value, 'id', "{$table_name}_signal_FK")
                 ->nullOnDelete();
+
+            $table->timestamp('reprocessed_at')->nullable()->comment('When the event was last replayed through its pipeline');
 
             MigrateUtils::timestamps($table, hasCreateUpdate: true, hasSoftDelete: true);
 

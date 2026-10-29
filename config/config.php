@@ -31,6 +31,15 @@ return [
             'enabled' => false,
             'min_occurrences' => 1,
         ],
+
+        // Recurrence comment (SignalRecurrenceCommenter): when an occurrence is
+        // recorded on a signal whose ticket is not closed, the ticket gets one
+        // system comment per cooldown summing up what recurred. The cooldown is
+        // read as at least 1 minute.
+        'recurrence_comment' => [
+            'enabled' => true,
+            'cooldown_minutes' => 60,
+        ],
     ],
 
     // Scheduled inbound polling for trackers with no push transport
@@ -48,6 +57,15 @@ return [
     'health' => [
         'enabled' => (bool) env('SAO_HEALTH_SCHEDULE', false),
         'cron' => (string) env('SAO_HEALTH_CRON', '*/15 * * * *'),
+    ],
+
+    // Scheduled census probe (sao:census:probe): asks each environment with a
+    // base URL which version it runs, for projects with a `probe` binding.
+    // Opt-in: off by default so no live request leaves unless an operator
+    // enables it; the command stays runnable on demand regardless.
+    'probe' => [
+        'enabled' => (bool) env('SAO_PROBE_SCHEDULE', false),
+        'cron' => (string) env('SAO_PROBE_CRON', '0 */6 * * *'),
     ],
 
     // Release-health read model (ReleaseHealthService). Post-hoc, correlation
@@ -137,6 +155,7 @@ return [
             Modules\SAO\Drivers\External\GitHubDeploymentDriver::class,
             Modules\SAO\Drivers\External\WebhookCodeDriver::class,
             Modules\SAO\Drivers\External\GitHubPullRequestDriver::class,
+            Modules\SAO\Drivers\External\HttpVersionDriver::class,
         ],
     ],
 ];

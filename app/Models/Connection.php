@@ -73,7 +73,7 @@ final class Connection extends Model
      */
     public function connectionContext(array $credentials): ConnectionContext
     {
-        return new ConnectionContext($this->base_url, $credentials);
+        return new ConnectionContext($this->base_url, $credentials, $this->config ?? []);
     }
 
     /**

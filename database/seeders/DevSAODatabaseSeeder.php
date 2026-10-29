@@ -169,6 +169,7 @@ final class DevSAODatabaseSeeder extends Seeder
             PermissionName::forClass(OwnershipSuggestion::class, 'accept'),
             PermissionName::forClass(Connection::class, 'health'),
             PermissionName::forClass(IngestEvent::class, 'replay'),
+            PermissionName::forClass(IngestEvent::class, 'reprocess'),
         ];
 
         foreach (self::READABLE as $model) {

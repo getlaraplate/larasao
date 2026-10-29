@@ -20,19 +20,21 @@ final class DeployCensusService
 {
     /**
      * Passively record a version we were told about, without asserting we
-     * verified it just now beyond the fact that the signal arrived.
+     * verified it just now beyond the fact that the signal arrived. The commit
+     * and the branch are optional and overwritten only when given.
      */
-    public function observe(Environment $environment, string $version): Environment
+    public function observe(Environment $environment, string $version, ?string $commit = null, ?string $branch = null): Environment
     {
-        return $this->stamp($environment, $version);
+        return $this->stamp($environment, $version, $commit, $branch);
     }
 
     /**
-     * Actively record a version we went and checked.
+     * Actively record a version we went and checked, with the same optional
+     * commit and branch as {@see self::observe()}.
      */
-    public function recordProbe(Environment $environment, string $version): Environment
+    public function recordProbe(Environment $environment, string $version, ?string $commit = null, ?string $branch = null): Environment
     {
-        return $this->stamp($environment, $version);
+        return $this->stamp($environment, $version, $commit, $branch);
     }
 
     /**
@@ -67,12 +69,27 @@ final class DeployCensusService
             ));
     }
 
-    private function stamp(Environment $environment, string $version): Environment
+    /**
+     * The version and the sighting time are always written; the commit and the
+     * branch only when the feed carried them, so a sighting that knows only the
+     * version does not erase what an earlier one recorded.
+     */
+    private function stamp(Environment $environment, string $version, ?string $commit, ?string $branch): Environment
     {
         $environment->forceFill([
             'current_version' => $version,
             'last_seen_at' => now(),
-        ])->save();
+        ]);
+
+        if ($commit !== null) {
+            $environment->current_commit = $commit;
+        }
+
+        if ($branch !== null) {
+            $environment->current_branch = $branch;
+        }
+
+        $environment->save();
 
         return $environment;
     }

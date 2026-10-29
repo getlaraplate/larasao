@@ -3,14 +3,19 @@
 declare(strict_types=1);
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Modules\SAO\Enums\CorrelationTarget;
+use Modules\SAO\Enums\IngestPipeline;
 use Modules\SAO\Enums\IngestStatus;
+use Modules\SAO\Enums\MatchType;
 use Modules\SAO\Ingest\IngestReplayService;
 use Modules\SAO\Ingest\PayloadMatcher;
 use Modules\SAO\Ingest\PayloadNormalizer;
 use Modules\SAO\Ingest\WebhookIngestService;
+use Modules\SAO\Models\CorrelationRule;
 use Modules\SAO\Models\IngestEvent;
 use Modules\SAO\Models\Project;
 use Modules\SAO\Models\Signal;
+use Modules\SAO\Models\SignalOccurrence;
 use Modules\SAO\Models\SourceProfile;
 
 uses(RefreshDatabase::class);
@@ -61,6 +66,7 @@ test('a correlated error is recorded ingested and becomes a signal', function ()
     expect($event->status)->toBe(IngestStatus::Ingested)
         ->and($event->outcome)->toBe('signal-recorded')
         ->and($event->winning_rule)->toBe('project_key')
+        ->and($event->fresh()->pipeline)->toBe(IngestPipeline::Profile)
         ->and($event->project_id)->toBe($project->id)
         ->and($event->signal_id)->not->toBeNull()
         ->and(Signal::query()->whereKey($event->signal_id)->exists())->toBeTrue();
@@ -115,4 +121,28 @@ test('replay is a pure dry-run that writes nothing', function (): void {
         ->and($result['winning_rule'])->toBe('project_key')
         ->and(IngestEvent::query()->count())->toBe($eventsBefore)
         ->and(Signal::query()->count())->toBe($signalsBefore);
+});
+
+test('an operator rule routes a payload, records its id and writes its environment on the occurrence', function (): void {
+    $project = Project::factory()->create();
+    $profile = sao_glitchtip_profile();
+    $profile->update(['field_bindings' => array_merge($profile->field_bindings, ['server_host' => 'host'])]);
+    $rule = CorrelationRule::factory()->create([
+        'project_id' => $project->getKey(),
+        'target' => CorrelationTarget::ServerHost,
+        'match' => MatchType::Wildcard,
+        'pattern' => 'web-*',
+        'environment' => 'staging',
+    ]);
+    $payload = sao_glitchtip_payload('UNKNOWN') + ['host' => 'web-01'];
+
+    $event = app(WebhookIngestService::class)->ingest(null, 'delivery-rule', $payload);
+    $dryRun = app(IngestReplayService::class)->dryRun($event, $profile);
+
+    expect($event->status)->toBe(IngestStatus::Ingested)
+        ->and($event->project_id)->toBe($project->id)
+        ->and($event->winning_rule)->toBe("rule:{$rule->id}")
+        ->and(SignalOccurrence::query()->where('signal_id', $event->signal_id)->value('environment'))->toBe('staging')
+        ->and($dryRun['winning_rule'])->toBe("rule:{$rule->id}")
+        ->and($dryRun['environment'])->toBe('staging');
 });
