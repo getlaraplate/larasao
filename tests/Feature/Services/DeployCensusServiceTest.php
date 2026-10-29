@@ -33,6 +33,45 @@ test('probing records the checked version like an observation', function (): voi
         ->and($environment->last_seen_at)->not->toBeNull();
 });
 
+test('observing stores the commit and branch when given', function (): void {
+    $environment = Environment::factory()->create();
+
+    $this->service->observe($environment, '1.4.0', 'abc1234', 'main');
+
+    $environment->refresh();
+
+    expect($environment->current_commit)->toBe('abc1234')
+        ->and($environment->current_branch)->toBe('main');
+});
+
+test('observing without a commit or branch keeps the stored ones', function (): void {
+    $environment = Environment::factory()->create([
+        'current_commit' => 'abc1234',
+        'current_branch' => 'main',
+    ]);
+
+    $this->service->observe($environment, '1.5.0');
+
+    $environment->refresh();
+
+    expect($environment->current_version)->toBe('1.5.0')
+        ->and($environment->current_commit)->toBe('abc1234')
+        ->and($environment->current_branch)->toBe('main');
+});
+
+test('probing stores the commit and branch when given and keeps them when not', function (): void {
+    $environment = Environment::factory()->create();
+
+    $this->service->recordProbe($environment, '2.0.0', 'def5678', 'release');
+    $this->service->recordProbe($environment->refresh(), '2.0.1');
+
+    $environment->refresh();
+
+    expect($environment->current_version)->toBe('2.0.1')
+        ->and($environment->current_commit)->toBe('def5678')
+        ->and($environment->current_branch)->toBe('release');
+});
+
 test('an environment never seen is stale', function (): void {
     $environment = Environment::factory()->create(['last_seen_at' => null]);
 

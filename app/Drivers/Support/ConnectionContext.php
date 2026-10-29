@@ -15,9 +15,11 @@ final readonly class ConnectionContext
 {
     /**
      * @param  array<string, mixed>  $credentials
+     * @param  array<string, mixed>  $config  The connection's non-secret configuration.
      */
     public function __construct(
         public ?string $baseUrl,
         public array $credentials,
+        public array $config = [],
     ) {}
 }

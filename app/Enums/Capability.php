@@ -19,6 +19,7 @@ enum Capability: string
     case Logs = 'logs';
     case Deploy = 'deploy';
     case Code = 'code';
+    case Probe = 'probe';
 
     public static function validationRule(): string
     {

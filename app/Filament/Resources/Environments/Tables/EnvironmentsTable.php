@@ -29,6 +29,17 @@ final class EnvironmentsTable
                         ->label(__('sao.fields.version'))
                         ->searchable()
                         ->placeholder('—'),
+                    TextColumn::make('current_commit')
+                        ->searchable()
+                        ->placeholder('—')
+                        ->toggleable(),
+                    TextColumn::make('current_branch')
+                        ->searchable()
+                        ->placeholder('—')
+                        ->toggleable(),
+                    TextColumn::make('base_url')
+                        ->placeholder('—')
+                        ->toggleable(isToggledHiddenByDefault: true),
                     TextColumn::make('last_seen_at')
                         ->dateTime()
                         ->sortable()

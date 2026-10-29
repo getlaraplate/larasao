@@ -99,6 +99,8 @@ Environment variables (all optional; the defaults are production-safe):
 | `SAO_SYNC_CRON` | `0 * * * *` | Cron expression for the scheduled inbound issue poll. |
 | `SAO_HEALTH_SCHEDULE` | `false` | Whether `sao:connection:health` runs on the scheduler. The command is always runnable manually. |
 | `SAO_HEALTH_CRON` | `*/15 * * * *` | Cron expression for the scheduled connection health probe. |
+| `SAO_PROBE_SCHEDULE` | `false` | Whether `sao:census:probe` runs on the scheduler. The command is always runnable manually. |
+| `SAO_PROBE_CRON` | `0 */6 * * *` | Cron expression for the scheduled census probe. |
 | `SAO_RETENTION_SCHEDULE` | `false` | Whether `sao:prune` runs on the scheduler. The command is always runnable manually (with `--dry-run`). |
 | `SAO_RETENTION_CRON` | `0 3 * * *` | Cron expression for the scheduled prune. |
 | `SAO_RETENTION_OCCURRENCES_DAYS` | `90` | Delete signal occurrences older than this many days (the signal and its counters are kept). |
@@ -270,6 +272,21 @@ any external integration (CLI-only CD steps, replay) with:
 ```bash
 php artisan sao:deploy:record {project} {version} --env=production --status=succeeded --external-id=ci-run-42
 ```
+
+### Census probe
+
+`php artisan sao:census:probe {project?}` asks each environment which version it is running and
+records the answer in the deploy census (`current_version`, plus `current_commit` and
+`current_branch` when the endpoint reports them, and `last_seen_at`). `{project}` is the
+project's key prefix; omit it to probe every project. Only projects with a `probe` binding are
+asked (the `http-version` driver), and only environments that carry an operator-set `base_url`.
+
+The command prints one line per environment and exits non-zero if any environment failed. A
+failed probe (unreachable, bad status, no usable version, a value longer than its 255-character
+column) is reported and leaves that environment unchanged, so it ages out through the census TTL
+instead of looking fresh. One failing environment never stops the others. The run is off the
+scheduler by default; enable it with `SAO_PROBE_SCHEDULE=true` (every six hours unless
+`SAO_PROBE_CRON` says otherwise).
 
 Deploys can also arrive as a **push webhook** through the `deploy` capability at
 `POST api/v1/webhooks/{connection}` (the same endpoint the `logs` push uses; the

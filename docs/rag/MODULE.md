@@ -285,6 +285,15 @@ Without `event` it takes every eligible event, narrowed by `--status` (`discarde
 
 **Retention limit.** Reprocessing needs the stored event. `sao:prune` deletes ingest events older than `SAO_RETENTION_INGEST_DAYS` (default `30`, config `sao.retention.ingest_events_days`), so an event older than that is gone and can no longer be reprocessed: fix the rule or binding and reprocess within the window, or raise the retention.
 
+### Census probe
+
+`php artisan sao:census:probe {project?}` is the active feed of the deploy census, next to the passive one (`DeployCensusService::observe()` from deploy webhooks). `{project}` is a project key prefix; without it every project is probed.
+
+-   **What is probed.** For each project with a `probe` binding (the `http-version` driver), each environment with an operator-set `base_url`: one GET of `base_url` plus the driver's path, never an address that arrived in a payload. The driver returns a `ProbedVersion` (version, optional commit, optional branch) and the command stores it with `DeployCensusService::recordProbe()`, stamping `last_seen_at`. Projects without a `probe` binding and environments without a `base_url` are skipped. A probe connection may hold no secret (the `auth_header` is optional); one that names a `credential_ref` must resolve it.
+-   **Output.** One line per environment: `{key_prefix} {environment}: {version}` or `{key_prefix} {environment}: failed — {reason}`. Exit code `1` if any environment failed, `0` when all succeeded or there was nothing to probe; an unknown `{project}` prints `Project [X] not found.` and exits `1`.
+-   **Failure leaves the environment unchanged.** A `ProbeException` (unreachable, bad status, not a JSON object, no version, refused address), an unexpected error (reported with its class name and logged as `sao.census.probe.failed`), or a version, commit or branch longer than the 255-character column writes nothing: the environment keeps its last values and goes stale through the census TTL. One environment never aborts the run.
+-   **Schedule.** Off by default. `sao.probe.enabled` (`SAO_PROBE_SCHEDULE`, default `false`) registers the command on the scheduler with `sao.probe.cron` (`SAO_PROBE_CRON`, default `0 */6 * * *`), without overlapping.
+
 ## Roadmap
 
 Design: `docs/superpowers/specs/2026-07-31-sao-module-design.md` in the application repository.
