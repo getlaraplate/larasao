@@ -23,7 +23,7 @@ final readonly class IngestReplayService
     ) {}
 
     /**
-     * @return array{matches: bool, canonical: array<string, mixed>, project_id: ?int, winning_rule: ?string, would_be_status: string}
+     * @return array{matches: bool, canonical: array<string, mixed>, project_id: ?int, winning_rule: ?string, environment: ?string, would_be_status: string}
      */
     public function dryRun(IngestEvent $event, SourceProfile $profile): array
     {
@@ -35,18 +35,20 @@ final readonly class IngestReplayService
                 'canonical' => [],
                 'project_id' => null,
                 'winning_rule' => null,
+                'environment' => null,
                 'would_be_status' => IngestStatus::Discarded->value,
             ];
         }
 
         $canonical = $this->normalizer->normalize($profile, $payload);
-        $correlation = $this->ruleset->correlate($canonical);
+        $correlation = $this->ruleset->correlate($canonical, CorrelationScope::forProfile($event->connection, $profile));
 
         return [
             'matches' => true,
             'canonical' => $canonical,
             'project_id' => $correlation['project']?->getKey(),
             'winning_rule' => $correlation['rule'],
+            'environment' => $correlation['environment'],
             'would_be_status' => $correlation['project'] === null
                 ? IngestStatus::Uncorrelated->value
                 : IngestStatus::Ingested->value,

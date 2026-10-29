@@ -67,11 +67,13 @@ final readonly class WebhookIngestService
         $event->source_profile_id = $profile->getKey();
         $canonical = $this->normalizer->normalize($profile, $payload);
 
-        $correlation = $this->ruleset->correlate($canonical);
+        $correlation = $this->ruleset->correlate($canonical, CorrelationScope::forProfile($connection, $profile));
 
         if ($correlation['project'] === null) {
             return $this->finish($event, IngestStatus::Uncorrelated, 'no-correlation-rule-matched');
         }
+
+        $canonical['environment'] = $correlation['environment'];
 
         $signal = $this->signalIngest->ingest($correlation['project'], $canonical);
 
