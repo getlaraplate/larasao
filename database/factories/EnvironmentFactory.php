@@ -26,7 +26,10 @@ final class EnvironmentFactory extends Factory
         return [
             'project_id' => Project::factory(),
             'name' => $this->faker->unique()->randomElement(['production', 'staging', 'qa', 'sandbox']),
+            'base_url' => null,
             'current_version' => null,
+            'current_commit' => null,
+            'current_branch' => null,
             'last_seen_at' => null,
         ];
     }

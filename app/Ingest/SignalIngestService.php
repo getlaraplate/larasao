@@ -8,9 +8,11 @@ use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Modules\SAO\Enums\SignalState;
+use Modules\SAO\Models\Environment;
 use Modules\SAO\Models\Project;
 use Modules\SAO\Models\Signal;
 use Modules\SAO\Models\SignalOccurrence;
+use Modules\SAO\Services\DeployCensusService;
 use Modules\SAO\Services\SignalRecurrenceCommenter;
 use Modules\SAO\Services\VersionCensusService;
 
@@ -30,6 +32,7 @@ final readonly class SignalIngestService
     public function __construct(
         private GroupKeyResolver $groupKeyResolver,
         private VersionCensusService $versionCensus,
+        private DeployCensusService $deployCensus,
         private SignalRecurrenceCommenter $recurrenceCommenter,
     ) {}
 
@@ -87,6 +90,10 @@ final readonly class SignalIngestService
             is_string($payload['version'] ?? null) ? $payload['version'] : null,
         );
 
+        if (! $isReplay) {
+            $this->observeEnvironment($project, $payload);
+        }
+
         $occurrence = SignalOccurrence::query()->create([
             'signal_id' => $signal->getKey(),
             'environment' => is_string($payload['environment'] ?? null) ? $payload['environment'] : null,
@@ -101,6 +108,41 @@ final readonly class SignalIngestService
         $this->recurrenceCommenter->afterOccurrence($signal, $occurrence);
 
         return $signal;
+    }
+
+    /**
+     * Feeds the deploy census from a live occurrence: when the payload names a version and the project
+     * already has an environment of the occurrence's name, that environment is observed running it. An
+     * unknown name creates nothing, so a host name used as the fallback environment never fills the
+     * census. A replayed occurrence carries a historical version and is not fed in. The write is a plain
+     * database update of an existing row, so a retried attempt repeats it harmlessly.
+     *
+     * @param  array<string, mixed>  $payload
+     */
+    private function observeEnvironment(Project $project, array $payload): void
+    {
+        $version = $payload['version'] ?? null;
+        $name = $payload['environment'] ?? null;
+
+        if (! is_string($version) || $version === '' || ! is_string($name) || $name === '') {
+            return;
+        }
+
+        $environment = Environment::query()
+            ->where('project_id', $project->getKey())
+            ->where('name', $name)
+            ->first();
+
+        if (! $environment instanceof Environment) {
+            return;
+        }
+
+        $this->deployCensus->observe(
+            $environment,
+            $version,
+            is_string($payload['commit'] ?? null) && $payload['commit'] !== '' ? $payload['commit'] : null,
+            is_string($payload['branch'] ?? null) && $payload['branch'] !== '' ? $payload['branch'] : null,
+        );
     }
 
     /**

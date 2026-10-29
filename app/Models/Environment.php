@@ -25,7 +25,10 @@ final class Environment extends Model
     protected $fillable = [
         'project_id',
         'name',
+        'base_url',
         'current_version',
+        'current_commit',
+        'current_branch',
         'last_seen_at',
     ];
 
