@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\SAO\Attribution;
 
+use Modules\SAO\Drivers\Support\VcsIdentifier;
 use Modules\SAO\Enums\ChangeRefRelation;
 use Modules\SAO\Enums\ChangeRefType;
 use Modules\SAO\Models\ChangeRef;
@@ -44,15 +45,6 @@ final readonly class CodeReferenceWriter
         return new CodeReferenceOutcome($changeRefs, array_values(array_unique($unknownKeys)));
     }
 
-    private static function normalizedSha(?string $sha): ?string
-    {
-        if ($sha === null || preg_match('/^[0-9a-f]{7,64}\z/i', $sha) !== 1) {
-            return null;
-        }
-
-        return mb_strtolower($sha);
-    }
-
     private function upsert(Ticket $ticket, CodeReference $reference, ChangeRefRelation $relation): ChangeRef
     {
         $changeRef = ChangeRef::query()->firstOrNew([
@@ -77,18 +69,18 @@ final readonly class CodeReferenceWriter
     /**
      * A commit reference is its own sha; any other type takes the sha the reference
      * carries, falling back to the stored one so a re-delivery without it keeps it.
-     * Only 7 to 64 hexadecimal characters count as a sha: anything else is treated
-     * as absent (a commit whose identifier is not a sha gets none, any other type
-     * keeps the stored one). Stored lowercase, so it compares equal to what a VCS
-     * reports.
+     * Only 7 to 64 hexadecimal characters count as a sha ({@see VcsIdentifier::sha()}):
+     * anything else is treated as absent (a commit whose identifier is not a sha
+     * gets none, any other type keeps the stored one). Stored lowercase, so it
+     * compares equal to what a VCS reports.
      */
     private function resolveCommitSha(ChangeRef $changeRef, CodeReference $reference): ?string
     {
         if ($reference->type === ChangeRefType::Commit) {
-            return self::normalizedSha($reference->identifier);
+            return VcsIdentifier::sha($reference->identifier);
         }
 
-        return self::normalizedSha($reference->commitSha) ?? $changeRef->commit_sha;
+        return VcsIdentifier::sha($reference->commitSha) ?? $changeRef->commit_sha;
     }
 
     /**
