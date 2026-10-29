@@ -8,6 +8,7 @@ return [
         'close' => 'Close',
         'healthCheck' => 'Health check',
         'replay' => 'Replay',
+        'reprocess' => 'Reprocess',
         'testConnection' => 'Test connection',
     ],
     'conditions' => [
@@ -270,6 +271,8 @@ return [
         'noHistoryYet' => 'No history yet.',
         'ownerAssigned' => 'Owner assigned',
         'replayResult' => 'Replay (dry run]: resulting status ":status".',
+        'reprocessCounts' => 'Reprocessed into Ingested: :ingested, still unmatched: :unmatched, failed: :failed, skipped: :skipped.',
+        'reprocessDone' => 'Reprocess finished',
         'ticketNotFound' => 'Ticket not found or not visible.',
         'transitionNotAllowed' => 'This transition is not allowed for this ticket.',
         'unknownStatus' => 'Unknown status.',

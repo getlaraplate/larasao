@@ -17,10 +17,12 @@ use Override;
  * Only what the domain adds on top of CRUD: moving a ticket through its
  * workflow, overriding a workflow that would otherwise deadlock the work,
  * closing a ticket by applying a closure policy, accepting an ownership
- * suggestion, probing a connection's health, and replaying a stored ingest
- * event. All but `transition_override` back a SPA-facing domain action in
+ * suggestion, probing a connection's health, replaying a stored ingest event
+ * and reprocessing one that did not become a signal. All but `transition_override`
+ * and `reprocess` back a SPA-facing domain action in
  * {@see \Modules\SAO\Services\DomainActions\SaoDomainActionRegistrar}; the
- * override is read straight from a gate by {@see \Modules\SAO\Services\WorkflowService}.
+ * override is read straight from a gate by {@see \Modules\SAO\Services\WorkflowService},
+ * and `reprocess` by the reprocess actions of the ingest event backoffice list.
  *
  * Nothing is declared here that no code reads. A permission with no consumer is
  * worse than a missing one: an administrator grants or withholds it and believes
@@ -44,7 +46,7 @@ final class SAOPermissions implements DeclaresPermissions
             Ticket::class => ['transition', 'transition_override', 'close'],
             OwnershipSuggestion::class => ['accept'],
             Connection::class => ['health'],
-            IngestEvent::class => ['replay'],
+            IngestEvent::class => ['replay', 'reprocess'],
         ];
     }
 

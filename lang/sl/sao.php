@@ -8,6 +8,7 @@ return [
         'close' => 'Zapri',
         'healthCheck' => 'Preverjanje stanja',
         'replay' => 'Ponovi obdelavo',
+        'reprocess' => 'Znova obdelaj',
         'testConnection' => 'Preizkusi povezavo',
     ],
     'conditions' => [
@@ -270,6 +271,8 @@ return [
         'noHistoryYet' => 'Zgodovine še ni.',
         'ownerAssigned' => 'Lastnik dodeljen',
         'replayResult' => 'Ponovna obdelava (preizkus]: končno stanje »:status«.',
+        'reprocessCounts' => 'Obdelano v Ingested: :ingested, še vedno brez ujemanja: :unmatched, neuspešno: :failed, preskočeno: :skipped.',
+        'reprocessDone' => 'Ponovna obdelava končana',
         'ticketNotFound' => 'Zahtevek ni najden ali ni viden.',
         'transitionNotAllowed' => 'Ta prehod za ta zahtevek ni dovoljen.',
         'unknownStatus' => 'Neznano stanje.',

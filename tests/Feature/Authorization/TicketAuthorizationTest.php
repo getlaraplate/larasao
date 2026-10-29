@@ -35,6 +35,7 @@ test('the seeder registers every SAO domain permission', function (): void {
         'default.sao_ownership_suggestions.accept',
         'default.sao_connections.health',
         'default.sao_ingest_events.replay',
+        'default.sao_ingest_events.reprocess',
     ];
 
     foreach ($expected as $name) {
