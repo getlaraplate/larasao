@@ -8,6 +8,7 @@ return [
         'close' => 'Schließen',
         'healthCheck' => 'Zustandsprüfung',
         'replay' => 'Erneut verarbeiten',
+        'reprocess' => 'Neu verarbeiten',
         'testConnection' => 'Verbindung testen',
     ],
     'conditions' => [
@@ -270,6 +271,8 @@ return [
         'noHistoryYet' => 'Noch kein Verlauf.',
         'ownerAssigned' => 'Verantwortlicher zugewiesen',
         'replayResult' => 'Erneute Verarbeitung (Probelauf]: resultierender Status „:status“.',
+        'reprocessCounts' => 'Neu verarbeitet: :ingested, weiterhin ohne Zuordnung: :unmatched, fehlgeschlagen: :failed, übersprungen: :skipped.',
+        'reprocessDone' => 'Neuverarbeitung abgeschlossen',
         'ticketNotFound' => 'Ticket nicht gefunden oder nicht sichtbar.',
         'transitionNotAllowed' => 'Dieser Übergang ist für dieses Ticket nicht erlaubt.',
         'unknownStatus' => 'Unbekannter Status.',

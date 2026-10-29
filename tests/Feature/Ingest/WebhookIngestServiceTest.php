@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Modules\SAO\Enums\CorrelationTarget;
+use Modules\SAO\Enums\IngestPipeline;
 use Modules\SAO\Enums\IngestStatus;
 use Modules\SAO\Enums\MatchType;
 use Modules\SAO\Ingest\IngestReplayService;
@@ -65,6 +66,7 @@ test('a correlated error is recorded ingested and becomes a signal', function ()
     expect($event->status)->toBe(IngestStatus::Ingested)
         ->and($event->outcome)->toBe('signal-recorded')
         ->and($event->winning_rule)->toBe('project_key')
+        ->and($event->fresh()->pipeline)->toBe(IngestPipeline::Profile)
         ->and($event->project_id)->toBe($project->id)
         ->and($event->signal_id)->not->toBeNull()
         ->and(Signal::query()->whereKey($event->signal_id)->exists())->toBeTrue();

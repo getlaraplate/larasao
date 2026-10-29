@@ -6,6 +6,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Modules\Core\Support\CrudApiExposure;
 use Modules\SAO\Enums\Capability;
 use Modules\SAO\Enums\CorrelationTarget;
+use Modules\SAO\Enums\IngestPipeline;
 use Modules\SAO\Enums\IngestStatus;
 use Modules\SAO\Enums\MatchType;
 use Modules\SAO\Models\Connection;
@@ -74,7 +75,8 @@ test('a signed logs delivery ingests a native-keyed signal into the bound projec
 
     expect($signal->group_key)->toBe('glitchtip:i-1')
         ->and($signal->occurrence_count)->toBe(1)
-        ->and(IngestEvent::query()->where('status', IngestStatus::Ingested)->count())->toBe(1);
+        ->and(IngestEvent::query()->where('status', IngestStatus::Ingested)->count())->toBe(1)
+        ->and(IngestEvent::query()->sole()->pipeline)->toBe(IngestPipeline::Logs);
 });
 
 test('a delivery with a wrong token is rejected and nothing is stored', function (): void {

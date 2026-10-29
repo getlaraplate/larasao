@@ -10,6 +10,7 @@ use Modules\SAO\Drivers\Support\BindingContext;
 use Modules\SAO\Drivers\Support\ConnectionCredentialResolver;
 use Modules\SAO\Drivers\Support\DeployEvent;
 use Modules\SAO\Enums\Capability;
+use Modules\SAO\Enums\IngestPipeline;
 use Modules\SAO\Enums\IngestStatus;
 use Modules\SAO\Models\Connection;
 use Modules\SAO\Models\Deployment;
@@ -115,6 +116,7 @@ final readonly class DeployWebhookIngestService
     {
         IngestEvent::query()->create([
             'connection_id' => $connection->getKey(),
+            'pipeline' => IngestPipeline::Deploy,
             'delivery_id' => $deliveryId,
             'payload' => $payload,
             'status' => $status,

@@ -35,6 +35,12 @@ final class PipelineContext
         $this->depth = max(0, $this->depth - 1);
     }
 
+    /**
+     * @template TResult
+     *
+     * @param  Closure(): TResult  $callback
+     * @return TResult
+     */
     public function run(Closure $callback): mixed
     {
         $this->enter();

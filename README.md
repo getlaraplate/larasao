@@ -136,6 +136,22 @@ over non-terminal tickets. By default it only **proposes** a close; turn the
 `closure.auto_close.enabled` Setting on to let a satisfied `close` policy actually close the
 ticket (through `WorkflowService`, audited and auto-reversible on recurrence).
 
+## Reprocessing ingest events
+
+An ingest event that did not become a signal (`discarded`, `uncorrelated` or
+`failed`, from a `profile` or `logs` delivery) can be replayed on its own row once
+a correlation rule, source profile or `logs` binding has been fixed:
+
+```bash
+php artisan sao:ingest:reprocess {event?} {--status=} {--connection=} {--since=} {--dry-run}
+```
+
+`--dry-run` reports what each event would become and writes nothing. The ingest
+event list in the backoffice offers the same as a **Reprocess** row and bulk
+action, gated by the `reprocess` permission. The occurrence keeps the event's
+original time, and a `Resolved` signal is never reopened by a replay. Events older
+than `SAO_RETENTION_INGEST_DAYS` have been pruned and can no longer be reprocessed.
+
 ## Migrating from an external tracker
 
 To switch a project from an external issue tracker to Laraplate, import its

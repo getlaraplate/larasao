@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Modules\SAO\Ingest;
 
+use Carbon\CarbonInterface;
+use Modules\SAO\Enums\IngestPipeline;
 use Modules\SAO\Enums\IngestStatus;
 use Modules\SAO\Models\Connection;
 use Modules\SAO\Models\IngestEvent;
@@ -35,6 +37,52 @@ final readonly class WebhookIngestService
     }
 
     /**
+     * Run one recorded delivery through the profile pipeline and save the row:
+     * select a profile, normalize, correlate and, when a project wins, record
+     * the signal. The live path calls it on a new row; reprocessing calls it on
+     * a stored one, passing the delivery's original time so the occurrence keeps
+     * it. Every field the pipeline decides is written, so nothing a previous
+     * attempt left on a stored row survives.
+     *
+     * @param  CarbonInterface|null  $occurredAt  The original delivery time on a replay; null on a live delivery.
+     */
+    public function process(IngestEvent $event, ?CarbonInterface $occurredAt = null): IngestEvent
+    {
+        $payload = $event->payload;
+
+        $event->source_profile_id = null;
+        $event->project_id = null;
+        $event->winning_rule = null;
+        $event->signal_id = null;
+
+        $profile = $this->profileSelector->select($payload);
+
+        if ($profile === null) {
+            return $this->finish($event, IngestStatus::Discarded, 'no-matching-profile');
+        }
+
+        $event->source_profile_id = $profile->getKey();
+        $canonical = $this->normalizer->normalize($profile, $payload);
+
+        $connection = $event->getRelationValue('connection');
+        $correlation = $this->ruleset->correlate($canonical, CorrelationScope::forProfile($connection instanceof Connection ? $connection : null, $profile));
+
+        if ($correlation['project'] === null) {
+            return $this->finish($event, IngestStatus::Uncorrelated, 'no-correlation-rule-matched');
+        }
+
+        $canonical['environment'] = $correlation['environment'];
+
+        $signal = $this->signalIngest->ingest($correlation['project'], $canonical, $occurredAt);
+
+        $event->project_id = $correlation['project']->getKey();
+        $event->winning_rule = $correlation['rule'];
+        $event->signal_id = $signal->getKey();
+
+        return $this->finish($event, IngestStatus::Ingested, 'signal-recorded');
+    }
+
+    /**
      * @param  array<string, mixed>  $payload
      */
     private function handle(?Connection $connection, string $deliveryId, array $payload): IngestEvent
@@ -53,35 +101,14 @@ final readonly class WebhookIngestService
 
         $event = new IngestEvent([
             'connection_id' => $connectionId,
+            'pipeline' => IngestPipeline::Profile,
             'delivery_id' => $deliveryId,
             'payload' => $payload,
             'status' => IngestStatus::Received,
         ]);
+        $event->setRelation('connection', $connection);
 
-        $profile = $this->profileSelector->select($payload);
-
-        if ($profile === null) {
-            return $this->finish($event, IngestStatus::Discarded, 'no-matching-profile');
-        }
-
-        $event->source_profile_id = $profile->getKey();
-        $canonical = $this->normalizer->normalize($profile, $payload);
-
-        $correlation = $this->ruleset->correlate($canonical, CorrelationScope::forProfile($connection, $profile));
-
-        if ($correlation['project'] === null) {
-            return $this->finish($event, IngestStatus::Uncorrelated, 'no-correlation-rule-matched');
-        }
-
-        $canonical['environment'] = $correlation['environment'];
-
-        $signal = $this->signalIngest->ingest($correlation['project'], $canonical);
-
-        $event->project_id = $correlation['project']->getKey();
-        $event->winning_rule = $correlation['rule'];
-        $event->signal_id = $signal->getKey();
-
-        return $this->finish($event, IngestStatus::Ingested, 'signal-recorded');
+        return $this->process($event);
     }
 
     private function finish(IngestEvent $event, IngestStatus $status, string $outcome): IngestEvent

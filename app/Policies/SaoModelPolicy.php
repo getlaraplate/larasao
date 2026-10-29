@@ -60,6 +60,11 @@ final class SaoModelPolicy
         return $this->allowsDomainAction($user, $record, 'replay', static fn (Model $record): bool => $record instanceof IngestEvent);
     }
 
+    public function reprocess(User $user, Model $record): bool
+    {
+        return $this->allowsDomainAction($user, $record, 'reprocess', static fn (Model $record): bool => $record instanceof IngestEvent);
+    }
+
     /**
      * @param  callable(Model): bool  $state_allows
      */

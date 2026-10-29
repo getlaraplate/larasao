@@ -6,6 +6,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Modules\Core\Support\CrudApiExposure;
 use Modules\SAO\Enums\Capability;
 use Modules\SAO\Enums\ChangeRefRelation;
+use Modules\SAO\Enums\IngestPipeline;
 use Modules\SAO\Models\ChangeRef;
 use Modules\SAO\Models\Connection;
 use Modules\SAO\Models\IngestEvent;
@@ -63,7 +64,8 @@ test('a signed merged-PR delivery records a fix change ref on the ticket', funct
 
     expect($changeRef->identifier)->toBe('pr-7')
         ->and($changeRef->relation)->toBe(ChangeRefRelation::Fixes)
-        ->and(IngestEvent::query()->where('connection_id', $connection->id)->where('status', 'ingested')->count())->toBe(1);
+        ->and(IngestEvent::query()->where('connection_id', $connection->id)->where('status', 'ingested')->count())->toBe(1)
+        ->and(IngestEvent::query()->sole()->pipeline)->toBe(IngestPipeline::Code);
 });
 
 test('a forged code delivery is rejected and stores nothing', function (): void {
