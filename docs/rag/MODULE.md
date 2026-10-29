@@ -74,6 +74,8 @@ the regression factor read as at least `1` (`1.0` for the factor), so a stored `
 | `signals.window_minutes` | `60` | Length of that rolling window, in minutes. |
 | `signals.auto_open.enabled` | `false` | Registers `sao:signals:auto-open` on the scheduler (read at console boot). |
 | `signals.auto_open.min_occurrences` | `1` | Occurrences a signal needs before it opens a ticket. |
+| `signals.recurrence_comment.enabled` | `true` | Comments on the signal's ticket when its error recurs. |
+| `signals.recurrence_comment.cooldown_minutes` | `60` | Minutes between two recurrence comments for one signal on a ticket; read as at least `1`. |
 | `release_health.window_days` | `7` | Days after a release whose signals are attributed to it. |
 | `release_health.regression_rate_factor` | `1.5` | Factor over the baseline count that marks a signal as regressed. |
 | `release_health.regression_min_occurrences` | `3` | In-window occurrences needed before a signal can be regressed. |
@@ -253,6 +255,15 @@ Evaluation stops at the first match, in this order:
 The winning rule is stored on the `IngestEvent` and shown by the dry-run replay (`sao:ingest:replay`). On the driver path (`logs` connections) both the operator rules and the built-in `project_key` step may only route to a project that has a `logs` binding on the receiving connection; a rule pointing elsewhere does not match and evaluation continues. With two or more `logs` bindings and no matching rule the event is `Uncorrelated`, never fanned out.
 
 The environment written on the occurrence is, in order, the winning rule's `environment`, the payload's `environment`, the event's `server_host`, or none. A rule's environment is only a name carried on the occurrence: it never creates an `Environment` row.
+
+### Recurrence comment
+
+`SignalRecurrenceCommenter::afterOccurrence()` is called by `SignalIngestService` right after the occurrence row is created, inside the ingest transaction and under the lock on the signal row. It posts one comment on the signal's ticket through `TicketComment::postFor()` with `ChangeContext::forAutomation('signal-recurrence:{signal id}')`: origin `system`, immutable.
+
+-   **When.** The signal has a `ticket_id`; the ticket's status category is not terminal (`closed`, `rejected`); `signals.recurrence_comment.enabled` is true; and the latest comment on that ticket with that source key is older than the cooldown, or there is none. An occurrence dropped by the rate limit returns before the commenter is reached.
+-   **Cooldown.** `signals.recurrence_comment.cooldown_minutes` (default `60`, read as `max(1, value)`), measured against `now()`, never against the occurrence time. The last comment is read from `sao_ticket_comments` by `(ticket_id, source_key, created_at)`; the signal has no column for it. Two concurrent occurrences serialize on the signal lock, so only one posts within a cooldown.
+-   **Body.** English lines: the number of occurrences recorded since the previous recurrence comment (or since the ticket's `created_at`), the first and last `occurred_at` in that span (UTC), the distinct environments and the distinct versions seen, or `none recorded`. The span counts occurrences by `created_at`, the time they were recorded, so replayed ones count.
+-   **Reprocessing.** A replay runs the same ingest, so the cooldown against `now()` makes a bulk run post at most one comment per signal. The commenter changes nothing outside the database (the comment row and the version rows Core writes for it), so a retried or rolled back ingest (a dry run) leaves nothing behind.
 
 ### Reprocessing ingest events
 

@@ -83,6 +83,8 @@ floored at 1 where they are read, so a stored `0` behaves as `1`; the one except
 | `signals.window_minutes` | `60` | Length of that rolling window, in minutes. |
 | `signals.auto_open.enabled` | `false` | Whether `sao:signals:auto-open` is registered on the scheduler (read when a console process boots). The command is always runnable manually. |
 | `signals.auto_open.min_occurrences` | `1` | Minimum occurrences before a signal auto-opens a ticket. |
+| `signals.recurrence_comment.enabled` | `true` | Whether a recurring error comments on its signal's ticket (see below). |
+| `signals.recurrence_comment.cooldown_minutes` | `60` | Minimum minutes between two recurrence comments on a ticket for one signal; read as at least `1`. |
 | `release_health.window_days` | `7` | How many days after a release its signals are attributed to it when judging release health. |
 | `release_health.regression_rate_factor` | `1.5` | A pre-existing signal counts as regressed only when its in-window count exceeds its baseline count by this factor (minimum `1.0`). |
 | `release_health.regression_min_occurrences` | `3` | Minimum in-window occurrences before a pre-existing signal can be flagged as regressed (noise floor). |
@@ -135,6 +137,20 @@ Two transports feed the same writer:
 over non-terminal tickets. By default it only **proposes** a close; turn the
 `closure.auto_close.enabled` Setting on to let a satisfied `close` policy actually close the
 ticket (through `WorkflowService`, audited and auto-reversible on recurrence).
+
+### Recurrence comment
+
+When an occurrence is recorded on a signal that has a ticket, the ticket gets one system comment, as
+long as the ticket's status category is not terminal (`closed` or `rejected`: the closure engine
+handles those), the setting `signals.recurrence_comment.enabled` is on, the occurrence was not
+dropped by the loop protection cap, and the previous recurrence comment of that signal on that
+ticket is older than `signals.recurrence_comment.cooldown_minutes` (or there is none). The comment
+is posted by automation (origin `system`, source key `signal-recurrence:{signal id}`), so it cannot
+be edited. Its body is plain text and deterministic: how many occurrences were recorded since the
+previous recurrence comment (or since the ticket was created), the first and last time they
+occurred, and the distinct environments and versions seen. The cooldown is measured against the
+current time, so reprocessing many old events of one signal posts at most one comment. Pushing the
+comment to an external tracker is not done.
 
 ## Reprocessing ingest events
 
