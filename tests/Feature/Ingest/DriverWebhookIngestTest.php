@@ -212,6 +212,23 @@ test('two logs bindings and no rule leave the event uncorrelated', function (): 
         ->and(Signal::query()->count())->toBe(0);
 });
 
+test('a connection whose only logs binding belongs to a deleted project is discarded as having no logs binding', function (): void {
+    $project = Project::factory()->create();
+    $connection = sao_logs_connection('graylog', [Capability::Logs]);
+    sao_bind_logs($connection, $project);
+    $project->delete();
+
+    $this->postJson(sao_webhook_url($connection), sao_graylog_body([sao_graylog_message('RuntimeException: one')]), sao_graylog_headers())
+        ->assertStatus(202)
+        ->assertJson(['result' => 'no-logs-binding']);
+
+    $event = IngestEvent::query()->sole();
+
+    expect($event->status)->toBe(IngestStatus::Discarded)
+        ->and($event->outcome)->toBe('no-logs-binding')
+        ->and(Signal::query()->count())->toBe(0);
+});
+
 test('a single logs binding and no rule ingests with the binding as winning rule', function (): void {
     $project = Project::factory()->create();
     $connection = sao_logs_connection('graylog', [Capability::Logs]);

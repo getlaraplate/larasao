@@ -7,6 +7,7 @@ namespace Modules\SAO\Ingest;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\UniqueConstraintViolationException;
+use Modules\SAO\Data\VersionCensus;
 use Modules\SAO\Drivers\Support\VcsIdentifier;
 use Modules\SAO\Enums\SignalState;
 use Modules\SAO\Models\Environment;
@@ -98,7 +99,7 @@ final readonly class SignalIngestService
         );
 
         if (! $isReplay) {
-            $this->observeEnvironment($project, $payload, $census->release);
+            $this->observeEnvironment($project, $payload, $census);
         }
 
         $occurrence = SignalOccurrence::query()->create([
@@ -118,13 +119,15 @@ final readonly class SignalIngestService
     }
 
     /**
-     * Feeds the deploy census from a live occurrence: when the occurrence's version resolved to a release
-     * of the project (the same normalization and lookup as the version census, {@see VersionCensusService})
-     * and the project already has an environment of the occurrence's name, that environment is observed
-     * running that release's version. A version that resolves to no release (`nightly`) writes nothing, so
-     * a messy log version never stands for a release version. An unknown name creates nothing, so a host
-     * name used as the fallback environment never fills the census. A replayed occurrence carries a
-     * historical version and is not fed in.
+     * Feeds the deploy census from a live occurrence. The occurrence stamps its environment only when its
+     * normalized version equals the version of the release it resolved to exactly (`v1.4.0` and
+     * `1.4.0 (build 123)` are `1.4.0`; `1.4.0-rc.1` and `1.4` are not) and that release existed before this
+     * occurrence: a release this very census created as `observed`, or no release at all (`nightly`), writes
+     * nothing, so a pre-release or a messy log version never stands for a release version. A release another
+     * ingest created concurrently counts as existing. When it stamps, the project must already have an
+     * environment of the occurrence's name; an unknown name creates nothing, so a host name used as the
+     * fallback environment never fills the census. Commit and branch belong to the same observation and are
+     * written or skipped with it. A replayed occurrence carries a historical version and is not fed in.
      *
      * The commit counts only when it is a sha and the branch only when it fits its column
      * ({@see VcsIdentifier}); otherwise each is absent and the stored one is kept. When neither version,
@@ -135,11 +138,18 @@ final readonly class SignalIngestService
      *
      * @param  array<string, mixed>  $payload
      */
-    private function observeEnvironment(Project $project, array $payload, ?Release $release): void
+    private function observeEnvironment(Project $project, array $payload, VersionCensus $census): void
     {
         $name = $payload['environment'] ?? null;
+        $release = $census->release;
 
-        if (! $release instanceof Release || ! is_string($name) || $name === '') {
+        if (
+            ! $release instanceof Release
+            || $release->wasRecentlyCreated
+            || $census->affectedVersion !== $release->version
+            || ! is_string($name)
+            || $name === ''
+        ) {
             return;
         }
 

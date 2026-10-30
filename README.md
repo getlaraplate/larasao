@@ -303,9 +303,11 @@ most 255 characters; otherwise the stored commit and branch are kept.
 Live error occurrences feed the same census between deploys. An occurrence that names an
 environment the project already has, and reports a version, stamps that environment with:
 
--   the version only when it resolves to a release of the project, through the same
-    normalization as the version census (`v1.4.0` and `1.4.0 (build 123)` stamp `1.4.0`, the
-    release's version); a version that resolves to no release (`nightly`) writes nothing;
+-   the version only when the normalized version equals the version of a release of the project
+    exactly (`v1.4.0` and `1.4.0 (build 123)` stamp `1.4.0`) and that release already existed
+    before the occurrence; a pre-release (`1.4.0-rc.1`), a shorter form (`1.4`), a version that
+    resolves to no release (`nightly`) or a release the occurrence itself just created as
+    observed write nothing, commit and branch included;
 -   the commit only when it is a valid sha and the branch only when it fits its column, with the
     same rules as a deployment;
 -   at most one write per minute while version, commit and branch are unchanged.
