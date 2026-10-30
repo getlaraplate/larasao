@@ -19,9 +19,11 @@ use Modules\Core\Helpers\HasMedia;
 use Modules\Core\Locking\Traits\HasOptimisticLocking;
 use Modules\Core\Models\User;
 use Modules\Core\Overrides\Model;
+use Modules\Core\Search\DTOs\VectorProfile;
 use Modules\Core\Search\Schema\FieldDefinition;
 use Modules\Core\Search\Schema\FieldType;
 use Modules\Core\Search\Schema\IndexType;
+use Modules\Core\Search\Support\VectorProfileContext;
 use Modules\Core\Search\Traits\Searchable;
 use Modules\SAO\Database\Factories\TicketFactory;
 use Modules\SAO\Enums\SAOTables;
@@ -428,9 +430,10 @@ final class Ticket extends Model implements IOptimisticLockableModel, ISearchabl
             $schema->addField(new FieldDefinition($key, FieldType::fromValue($value), [IndexType::Searchable]));
         }
 
-        $schema->addField(new FieldDefinition('embeddings', FieldType::Array, [IndexType::Searchable, IndexType::Vector], [
-            'vector' => ['dimensions' => (int) config('core.search.vector.dimensions', 384), 'similarity' => config('core.search.vector.similarity', 'cosine')],
-        ]));
+        $profile = VectorProfileContext::get();
+        $schema->addField(new FieldDefinition('embeddings', FieldType::Array, [IndexType::Searchable, IndexType::Vector], $profile instanceof VectorProfile
+            ? ['vector' => ['dimensions' => $profile->dimensions, 'similarity' => $profile->similarity]]
+            : []));
 
         return $this->getSearchMappingTrait($schema);
     }
