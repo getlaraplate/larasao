@@ -305,9 +305,11 @@ environment the project already has, and reports a version, stamps that environm
 
 -   the version only when the normalized version equals the version of a release of the project
     exactly (`v1.4.0` and `1.4.0 (build 123)` stamp `1.4.0`) and that release already existed
-    before the occurrence; a pre-release (`1.4.0-rc.1`), a shorter form (`1.4`), a version that
-    resolves to no release (`nightly`) or a release the occurrence itself just created as
-    observed write nothing, commit and branch included;
+    before the occurrence. A pre-release (`1.4.0-rc.1`) never stamps; a version that resolves to
+    no release (`nightly`) and the occurrence that itself creates the release as observed write
+    nothing, commit and branch included. A shorter form such as `1.4` is its own release: once
+    it exists it stamps `1.4`, which can replace a deployed `1.4.0` and make a fix shipped in
+    `1.4.0` show as missing there (never a false "deployed");
 -   the commit only when it is a valid sha and the branch only when it fits its column, with the
     same rules as a deployment;
 -   at most one write per minute while version, commit and branch are unchanged.

@@ -121,10 +121,12 @@ final readonly class SignalIngestService
     /**
      * Feeds the deploy census from a live occurrence. The occurrence stamps its environment only when its
      * normalized version equals the version of the release it resolved to exactly (`v1.4.0` and
-     * `1.4.0 (build 123)` are `1.4.0`; `1.4.0-rc.1` and `1.4` are not) and that release existed before this
+     * `1.4.0 (build 123)` are `1.4.0`; `1.4.0-rc.1` is not) and that release existed before this
      * occurrence: a release this very census created as `observed`, or no release at all (`nightly`), writes
-     * nothing, so a pre-release or a messy log version never stands for a release version. A release another
-     * ingest created concurrently counts as existing. When it stamps, the project must already have an
+     * nothing. A pre-release therefore never stamps. A shorter form such as `1.4` is its own release, so once
+     * that release exists it stamps `1.4`, which can replace a deployed `1.4.0` and make a fix shipped in
+     * `1.4.0` show as missing there (conservative: never a false "deployed"). A release another ingest
+     * created concurrently counts as existing. When it stamps, the project must already have an
      * environment of the occurrence's name; an unknown name creates nothing, so a host name used as the
      * fallback environment never fills the census. Commit and branch belong to the same observation and are
      * written or skipped with it. A replayed occurrence carries a historical version and is not fed in.
