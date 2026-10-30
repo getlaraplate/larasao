@@ -6,6 +6,8 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Config;
 use Laravel\Scout\EngineManager;
 use Modules\Core\Search\Contracts\ISearchEngine;
+use Modules\Core\Search\DTOs\VectorProfile;
+use Modules\Core\Tests\Support\FakeVectorProfile;
 use Modules\SAO\Models\Ticket;
 
 uses(RefreshDatabase::class);
@@ -37,7 +39,7 @@ it('emits a single agnostic embeddings entry in the search document', function (
     // toSearchableArray() would never reach the embeddings branch. Register a fake engine
     // under a throwaway driver name instead, mirroring
     // SaoApplicationContentRetrievalProviderTest's `sao-application-content-test` pattern.
-    Config::set('core.search.vector.enabled', true);
+    FakeVectorProfile::use(new VectorProfile('test-embedding-model', 3, 'cosine'));
     $engine = Mockery::mock(ISearchEngine::class);
     $engine->shouldReceive('supportsVectorSearch')->andReturnTrue();
     app(EngineManager::class)->extend('ticket-embeddable-test', static fn () => $engine);
@@ -48,7 +50,8 @@ it('emits a single agnostic embeddings entry in the search document', function (
     expect($document['embeddings'])->toBe([['vector' => [0.1, 0.2, 0.3]]]);
 });
 
-it('declares embeddings as a nested vector field in the search mapping, unconditionally', function (): void {
+it('declares embeddings as a nested vector field of the vector profile in the search mapping, unconditionally', function (): void {
+    FakeVectorProfile::use(new VectorProfile('test-embedding-model', 1024, 'dot_product'));
     // Force the Elasticsearch translator so the mapping shape can be asserted without
     // depending on which Scout driver the environment happens to have configured,
     // mirroring ContentSearchableArrayTest's mapping assertion.
@@ -62,6 +65,16 @@ it('declares embeddings as a nested vector field in the search mapping, uncondit
 
     expect($properties['embeddings']['type'])->toBe('nested')
         ->and($properties['embeddings']['properties']['vector']['type'])->toBe('dense_vector')
-        ->and($properties['embeddings']['properties']['vector']['dims'])->toBe((int) config('core.search.vector.dimensions', 384))
+        ->and($properties['embeddings']['properties']['vector']['dims'])->toBe(1024)
+        ->and($properties['embeddings']['properties']['vector']['similarity'])->toBe('dot_product')
         ->and($properties['title']['type'])->toBe('text');
+});
+
+it('declares the embeddings field without a nested vector when there is no vector profile', function (): void {
+    FakeVectorProfile::none();
+    Config::set('scout.driver', 'elasticsearch');
+
+    $properties = (new Ticket())->getSearchMapping()['mappings']['properties'];
+
+    expect($properties['embeddings'])->not->toHaveKey('properties');
 });
