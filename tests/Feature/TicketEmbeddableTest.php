@@ -19,7 +19,7 @@ it('declares title and description as the embeddable fields', function (): void 
 it('emits a single agnostic embeddings entry in the search document', function (): void {
     // Create the ticket first under the suite's default Scout driver — swapping the driver
     // beforehand would route the factory's own save-triggered indexing through the fake
-    // engine below, which stubs only what this test needs (supportsVectorSearch).
+    // engine below, which stubs only what this test needs (offersVectorSearch).
     $ticket = Ticket::factory()->create([
         'title' => 'Deploy failed on staging',
         'description' => 'The pipeline went red after the last release.',
@@ -41,7 +41,7 @@ it('emits a single agnostic embeddings entry in the search document', function (
     // SaoApplicationContentRetrievalProviderTest's `sao-application-content-test` pattern.
     FakeVectorProfile::use(new VectorProfile('test-embedding-model', 3, 'cosine'));
     $engine = Mockery::mock(ISearchEngine::class);
-    $engine->shouldReceive('supportsVectorSearch')->andReturnTrue();
+    $engine->shouldReceive('offersVectorSearch')->andReturnTrue();
     app(EngineManager::class)->extend('ticket-embeddable-test', static fn () => $engine);
     Config::set('scout.driver', 'ticket-embeddable-test');
 
