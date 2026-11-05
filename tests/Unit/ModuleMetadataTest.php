@@ -62,7 +62,7 @@ test('composer.json declares the platform floors', function (): void {
     $require = $config['require'];
 
     expect($require['php'])->toBe('>=8.5');
-    expect($require['laravel/framework'])->toBe('^12.0');
+    expect($require['laravel/framework'])->toBe('^13.0');
 });
 
 test('composer.json declares no test or quality script', function (): void {
