@@ -2,6 +2,16 @@
 module: sao
 audience: user
 cross_cutting_user: false
+locale: en
+canonical_source: sao/drivers
+safe_source_label: "SAO · Connecting to external systems"
+version: '1.0'
+policy_classification: user_safe
+policy_classification_version: in-app-docs-v1
+required_permissions:
+  - sao_connections.select
+  - sao_connections.update
+tenant_scope: global
 ---
 # Connecting SAO to external systems — what to expect
 
