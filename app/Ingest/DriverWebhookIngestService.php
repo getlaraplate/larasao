@@ -70,6 +70,7 @@ final readonly class DriverWebhookIngestService
         $hasLogsBinding = ProjectBinding::query()
             ->where('connection_id', $connection->getKey())
             ->where('capability', Capability::Logs)
+            ->ofLiveProject()
             ->exists();
 
         if (! $hasLogsBinding) {
