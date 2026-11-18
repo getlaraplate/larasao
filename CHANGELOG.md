@@ -2,6 +2,64 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.6.0] - 2026-11-18
+
+### 🚀 Features
+
+- *(sao)* Runtime tunables are settings
+- *(sao)* Operator correlation rules
+- *(sao)* Logs deliveries correlate per event
+- *(sao)* Correlation rules resource
+- *(sao)* Ingest events record their pipeline
+- *(sao)* Reprocess unmatched ingest events
+- *(sao)* Reprocess actions on ingest events
+- *(sao)* Recurrence comment on the open ticket
+- *(sao)* Environments record commit and branch
+- *(sao)* Http-version probe driver
+- *(sao)* Scheduled census probe
+- *(sao)* Vcs drivers tell whether a ref contains a commit
+- *(sao)* Change refs keep the commit an environment can contain
+- *(sao)* Record whether each environment contains each fix
+- *(sao)* Fix status shows containment per environment
+
+### 🐛 Bug Fixes
+
+- *(sao)* The signal occurrence cap keeps 0 = no cap
+- *(sao)* Replayed occurrences keep first seen and do not reopen
+- *(sao)* Lock the signal row while recording an occurrence
+- *(sao)* Lock only found rows and recover concurrent release creation
+- *(sao)* Retry the ingest on a deadlock and share-lock the census re-read
+- *(sao)* Probe malformed urls and connection config
+- *(sao)* Occurrences feed the census only release versions and valid shas
+- *(sao)* Ignore deleted projects and keep known fix presences
+- *(sao)* Derive optional credentials from the driver schema
+- *(sao)* Translate the reprocess counts status and correct the job docblock
+
+### 🚜 Refactor
+
+- *(sao)* Read the vector profile instead of core.search.vector
+- *(sao)* Follow the offersVectorSearch rename in the ticket embeddable test
+
+### 📚 Documentation
+
+- *(sao)* Correlation rules
+- *(sao)* Ingest reprocessing
+- *(sao)* Recurrence comment
+- *(sao)* Fix presence read side and unchanged closure
+- *(sao)* Document the occurrence census feed and fix containment
+- Require Laravel 13
+- *(sao)* Front matter for the user documentation index
+
+### 🧪 Testing
+
+- *(sao)* Assert the Laravel 13 framework floor
+
+### ⚙️ Miscellaneous Tasks
+
+- *(seeders)* Report each seeding step with one summary line
+- Drop the license-compliance-checker repository
+- *(deps)* Require Laravel 13
+
 ## [1.5.1] - 2026-10-21
 
 ### 🚀 Features
