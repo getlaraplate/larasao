@@ -6,6 +6,8 @@ namespace Modules\SAO\Services;
 
 use Carbon\CarbonInterface;
 use Illuminate\Contracts\Database\Query\Builder as QueryBuilder;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Collection;
 use Modules\SAO\Models\Deployment;
 use Modules\SAO\Models\IngestEvent;
 use Modules\SAO\Models\Project;
@@ -55,7 +57,7 @@ final readonly class RetentionService
 
         $query = Deployment::query()
             ->where('started_at', '<', $this->cutoff($days))
-            ->when($latestIds !== [], fn ($builder) => $builder->whereNotIn('id', $latestIds));
+            ->when($latestIds !== [], fn (Builder $builder): Builder => $builder->whereNotIn('id', $latestIds));
 
         return $this->purge($query->toBase(), $dryRun);
     }
@@ -101,7 +103,7 @@ final readonly class RetentionService
 
         $removed = 0;
 
-        $query->chunkById(500, function ($tickets) use (&$removed): void {
+        $query->chunkById(500, function (Collection $tickets) use (&$removed): void {
             foreach ($tickets as $ticket) {
                 $ticket->clearMediaCollection('attachments');
                 $ticket->forceDelete();

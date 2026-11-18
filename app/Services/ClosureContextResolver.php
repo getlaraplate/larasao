@@ -6,6 +6,7 @@ namespace Modules\SAO\Services;
 
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
+use Illuminate\Database\Eloquent\Builder;
 use Modules\SAO\Closure\ClosureContext;
 use Modules\SAO\Enums\StatusCategory;
 use Modules\SAO\Models\SignalOccurrence;
@@ -48,7 +49,7 @@ final class ClosureContextResolver
             ->whereIn('signal_id', $ticket->signals()->select('id'))
             ->when(
                 $reportingEnvironment !== null,
-                static fn ($q) => $q->where('environment', $reportingEnvironment),
+                static fn (Builder $q): Builder => $q->where('environment', $reportingEnvironment),
             );
 
         $occurrence = $query->orderByDesc('occurred_at')->first();

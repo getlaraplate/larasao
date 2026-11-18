@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\SAO\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Modules\Core\Overrides\Model;
@@ -111,7 +112,7 @@ final class WorkflowScheme extends Model
             }
 
             self::query()
-                ->when($scheme->exists, static fn ($query) => $query->whereKeyNot($scheme->getKey()))
+                ->when($scheme->exists, static fn (Builder $query): Builder => $query->whereKeyNot($scheme->getKey()))
                 ->where('is_default', true)
                 ->update(['is_default' => false]);
         });

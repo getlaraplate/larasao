@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Modules\SAO\Providers;
 
 use Illuminate\Console\Scheduling\Schedule;
+use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Support\Facades\Gate;
 use Modules\Core\ApplicationContent\Contracts\ApplicationContentRetrievalProviderRegistryInterface;
 use Modules\Core\Exceptions\ConfigurationException;
@@ -57,7 +58,7 @@ final class SAOServiceProvider extends ModuleServiceProvider
 
         parent::register();
 
-        $this->app->singleton(DriverRegistry::class, static function ($app): DriverRegistry {
+        $this->app->singleton(DriverRegistry::class, static function (Application $app): DriverRegistry {
             $registry = new DriverRegistry;
 
             /** @var list<class-string> $registered */

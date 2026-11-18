@@ -13,6 +13,7 @@ use Modules\SAO\Drivers\Support\ConnectionCredentialResolver;
 use Modules\SAO\Enums\Capability;
 use Modules\SAO\Enums\IngestPipeline;
 use Modules\SAO\Enums\IngestStatus;
+use Modules\SAO\Models\ChangeRef;
 use Modules\SAO\Models\Connection;
 use Modules\SAO\Models\IngestEvent;
 use Modules\SAO\Models\ProjectBinding;
@@ -121,7 +122,7 @@ final readonly class CodeWebhookIngestService
     }
 
     /**
-     * @param  list<\Modules\SAO\Models\ChangeRef>  $changeRefs
+     * @param  list<ChangeRef>  $changeRefs
      * @param  list<string>  $unknownKeys
      * @return array<string, mixed>
      */
@@ -130,7 +131,7 @@ final readonly class CodeWebhookIngestService
         return [
             'type' => $reference->type->value,
             'identifier' => $reference->identifier,
-            'change_ref_ids' => array_map(static fn ($changeRef): int => (int) $changeRef->getKey(), $changeRefs),
+            'change_ref_ids' => array_map(static fn (ChangeRef $changeRef): int => (int) $changeRef->getKey(), $changeRefs),
             'unknown_keys' => $unknownKeys,
         ];
     }

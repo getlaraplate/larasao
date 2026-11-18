@@ -8,6 +8,7 @@ use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 use Illuminate\Support\Collection;
 use Modules\Core\Filament\Utils\HasTable;
+use Modules\SAO\Models\ClosurePolicy;
 
 final class ClosurePoliciesTable
 {
@@ -29,7 +30,7 @@ final class ClosurePoliciesTable
                         ->badge(),
                     TextColumn::make('conditions')
                         ->badge()
-                        ->state(static fn ($record): array => array_map(
+                        ->state(static fn (ClosurePolicy $record): array => array_map(
                             static fn (array $condition): string => (string) ($condition['key'] ?? ''),
                             $record->conditions,
                         )),

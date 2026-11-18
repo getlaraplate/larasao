@@ -7,6 +7,7 @@ namespace Modules\SAO\Services;
 use Carbon\CarbonInterface;
 use Carbon\CarbonInterval;
 use Illuminate\Contracts\Database\Eloquent\Builder;
+use Illuminate\Support\Collection;
 use Modules\SAO\Data\ReleaseHealth;
 use Modules\SAO\Enums\DeploymentStatus;
 use Modules\SAO\Enums\ReleaseHealthVerdict;
@@ -49,7 +50,7 @@ final class ReleaseHealthService
 
         $ticketIds = $release->ticketReleases()->pluck('ticket_id')->all();
 
-        /** @var \Illuminate\Support\Collection<int, Signal> $signals */
+        /** @var Collection<int, Signal> $signals */
         $signals = Signal::query()
             ->where(function (Builder $query) use ($release, $ticketIds): void {
                 $query->where('project_id', $release->project_id);
@@ -171,11 +172,11 @@ final class ReleaseHealthService
      * factor. Requires a baseline — without one, nothing can be called a
      * regression.
      *
-     * @param  \Illuminate\Support\Collection<int, Signal>  $signals
+     * @param  Collection<int, Signal>  $signals
      * @param  array<string, int>|null  $baselineCounts
      * @return list<string>
      */
-    private function regressed($signals, CarbonInterface $windowStart, ?array $baselineCounts): array
+    private function regressed(Collection $signals, CarbonInterface $windowStart, ?array $baselineCounts): array
     {
         if ($baselineCounts === null) {
             return [];

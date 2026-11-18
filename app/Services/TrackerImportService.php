@@ -21,6 +21,7 @@ use Modules\SAO\Models\ProjectBinding;
 use Modules\SAO\Models\Ticket;
 use Modules\SAO\Models\TicketComment;
 use Modules\SAO\Models\TicketLink;
+use Spatie\MediaLibrary\MediaCollections\Models\Media;
 
 /**
  * Imports an external tracker's issue history into SAO — the "switch to Laraplate,
@@ -228,7 +229,7 @@ final readonly class TrackerImportService
         }
 
         $alreadyStored = $ticket->getMedia(self::ATTACHMENT_COLLECTION)
-            ->contains(static fn ($media): bool => $remoteId === (string) $media->getCustomProperty('remote_id'));
+            ->contains(static fn (Media $media): bool => $remoteId === (string) $media->getCustomProperty('remote_id'));
 
         if ($alreadyStored) {
             return false;

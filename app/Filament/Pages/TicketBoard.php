@@ -19,6 +19,7 @@ use Modules\SAO\Exceptions\TransitionNotAllowedException;
 use Modules\SAO\Models\Project;
 use Modules\SAO\Models\Ticket;
 use Modules\SAO\Models\TicketStatus;
+use Modules\SAO\Models\WorkflowTransition;
 use Modules\SAO\Services\TicketBoardService;
 use Modules\SAO\Services\TicketQueryService;
 use Modules\SAO\Services\WorkflowService;
@@ -125,7 +126,7 @@ final class TicketBoard extends Page
 
         return app(WorkflowService::class)
             ->availableTransitions($ticket)
-            ->mapWithKeys(static fn ($transition): array => [$transition->to_status_id => $transition->label])
+            ->mapWithKeys(static fn (WorkflowTransition $transition): array => [$transition->to_status_id => $transition->label])
             ->all();
     }
 

@@ -87,7 +87,7 @@ final class Ticket extends Model implements IOptimisticLockableModel, ISearchabl
      *
      * @var list<string>
      */
-    protected $versionable = [
+    protected array $versionable = [
         'title',
         'description',
         'priority',

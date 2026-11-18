@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Modules\SAO\Services;
 
 use Carbon\CarbonInterface;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Modules\SAO\Data\ChangeContext;
 use Modules\SAO\Models\Signal;
@@ -66,8 +67,8 @@ final readonly class SignalRecurrenceCommenter
             ->where('id', '<=', $occurrence->getKey())
             ->when(
                 $previous instanceof TicketComment,
-                static fn ($query) => $query->where('created_at', '>', $previous->created_at),
-                static fn ($query) => $query->where('created_at', '>=', $ticket->created_at),
+                static fn (Builder $query): Builder => $query->where('created_at', '>', $previous->created_at),
+                static fn (Builder $query): Builder => $query->where('created_at', '>=', $ticket->created_at),
             )
             ->get(['occurred_at', 'environment', 'affected_version']);
 
