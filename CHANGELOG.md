@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.6.1] - 2026-11-18
+
+### 🐛 Bug Fixes
+
+- *(sao)* Occurrences stamp only an exact, existing release version
+
+### 📚 Documentation
+
+- *(sao)* Describe occurrence stamping exactly
+
 ## [1.6.0] - 2026-11-18
 
 ### 🚀 Features
