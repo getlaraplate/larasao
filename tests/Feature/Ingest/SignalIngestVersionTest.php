@@ -59,6 +59,7 @@ test('ingest without a reported version leaves the occurrence version empty', fu
 });
 
 test('a live occurrence updates the census of the existing environment of that name', function (): void {
+    Release::factory()->for($this->project)->create(['version' => '1.4.0']);
     $environment = Environment::factory()->for($this->project)->create(['name' => 'customer-a']);
 
     $this->service->ingest($this->project, [
@@ -172,6 +173,7 @@ test('an occurrence version is stored as the release it resolves to, so the fix 
 });
 
 test('an occurrence version with build noise is stored as its release version', function (): void {
+    Release::factory()->for($this->project)->create(['version' => '1.4.0']);
     $environment = Environment::factory()->for($this->project)->create(['name' => 'production']);
 
     $this->service->ingest($this->project, [
@@ -205,6 +207,7 @@ test('an occurrence version that resolves to no release leaves the environment u
 });
 
 test('an occurrence commit longer than any sha is ignored and the ingest still succeeds', function (): void {
+    Release::factory()->for($this->project)->create(['version' => '1.4.0']);
     $environment = Environment::factory()->for($this->project)->create([
         'name' => 'production',
         'current_commit' => 'abc1234',
@@ -228,6 +231,7 @@ test('an occurrence commit longer than any sha is ignored and the ingest still s
 });
 
 test('an occurrence commit that is not a sha changes nothing and queues no presence check', function (): void {
+    Release::factory()->for($this->project)->create(['version' => '1.4.0']);
     $environment = Environment::factory()->for($this->project)->create([
         'name' => 'production',
         'current_commit' => 'abc1234',
@@ -246,6 +250,7 @@ test('an occurrence commit that is not a sha changes nothing and queues no prese
 });
 
 test('an occurrence sha is stored lowercase', function (): void {
+    Release::factory()->for($this->project)->create(['version' => '1.4.0']);
     $environment = Environment::factory()->for($this->project)->create(['name' => 'production']);
 
     $this->service->ingest($this->project, [
@@ -259,6 +264,7 @@ test('an occurrence sha is stored lowercase', function (): void {
 });
 
 test('a second unchanged occurrence within a minute does not write the environment again', function (): void {
+    Release::factory()->for($this->project)->create(['version' => '1.4.0']);
     $environment = Environment::factory()->for($this->project)->create(['name' => 'production']);
     $payload = ['message' => 'Boom', 'environment' => 'production', 'version' => '1.4.0', 'commit' => 'abc1234', 'branch' => 'main'];
 
@@ -281,6 +287,7 @@ test('a second unchanged occurrence within a minute does not write the environme
 });
 
 test('an unchanged occurrence after a minute stamps the environment again', function (): void {
+    Release::factory()->for($this->project)->create(['version' => '1.4.0']);
     $environment = Environment::factory()->for($this->project)->create(['name' => 'production']);
     $payload = ['message' => 'Boom', 'environment' => 'production', 'version' => '1.4.0'];
 
@@ -294,6 +301,8 @@ test('an unchanged occurrence after a minute stamps the environment again', func
 });
 
 test('a changed occurrence within a minute writes the environment', function (): void {
+    Release::factory()->for($this->project)->create(['version' => '1.4.0']);
+    Release::factory()->for($this->project)->create(['version' => '1.5.0']);
     $environment = Environment::factory()->for($this->project)->create(['name' => 'production']);
 
     $this->service->ingest($this->project, ['message' => 'Boom', 'environment' => 'production', 'version' => '1.4.0']);
@@ -301,4 +310,87 @@ test('a changed occurrence within a minute writes the environment', function ():
     $this->service->ingest($this->project, ['message' => 'Boom', 'environment' => 'production', 'version' => '1.5.0']);
 
     expect($environment->refresh()->current_version)->toBe('1.5.0');
+});
+
+test('a pre-release occurrence stamps nothing, so a fix shipped in the stable release is not deployed there', function (): void {
+    $release = Release::factory()->for($this->project)->shipped()->create(['version' => '1.4.0']);
+    $ticket = Ticket::factory()->for($this->project)->create();
+    TicketRelease::factory()->create([
+        'ticket_id' => $ticket->id,
+        'release_id' => $release->id,
+        'state' => TicketReleaseState::Shipped,
+    ]);
+    $environment = Environment::factory()->for($this->project)->create([
+        'name' => 'production',
+        'current_version' => '1.4.0-rc.1',
+        'current_commit' => 'abc1234',
+        'current_branch' => 'rc',
+    ]);
+
+    $this->service->ingest($this->project, [
+        'message' => 'Boom',
+        'environment' => 'production',
+        'version' => '1.4.0-rc.1',
+        'commit' => 'def5678',
+        'branch' => 'main',
+    ]);
+
+    $environment->refresh();
+    $status = (new FixStatusResolver())->forTicket($ticket->refresh());
+
+    expect($environment->current_version)->toBe('1.4.0-rc.1')
+        ->and($environment->current_commit)->toBe('abc1234')
+        ->and($environment->current_branch)->toBe('rc')
+        ->and($environment->last_seen_at)->toBeNull()
+        ->and($status->deployed_environments)->toBe([])
+        ->and($status->missing_environments)->toBe(['production']);
+});
+
+test('an occurrence that creates a new observed release stamps nothing', function (): void {
+    $environment = Environment::factory()->for($this->project)->create([
+        'name' => 'production',
+        'current_version' => '1.4.0',
+    ]);
+
+    $this->service->ingest($this->project, [
+        'message' => 'Boom',
+        'environment' => 'production',
+        'version' => '1.4',
+        'commit' => 'def5678',
+    ]);
+
+    $environment->refresh();
+
+    expect(Release::query()->where('version', '1.4')->exists())->toBeTrue()
+        ->and($environment->current_version)->toBe('1.4.0')
+        ->and($environment->current_commit)->toBeNull()
+        ->and($environment->last_seen_at)->toBeNull();
+});
+
+test('a release created by a concurrent ingest counts as existing and is stamped', function (): void {
+    $environment = Environment::factory()->for($this->project)->create(['name' => 'production']);
+    $connection = (new Release)->getConnection();
+    $releases = 'from ' . $connection->getQueryGrammar()->wrapTable(SAOTables::Releases->value);
+    $competitor = null;
+
+    $connection->listen(function (QueryExecuted $query) use (&$competitor, $releases): void {
+        if ($competitor !== null || ! str_starts_with(mb_strtolower($query->sql), 'select') || ! str_contains($query->sql, $releases)) {
+            return;
+        }
+
+        $competitor = Release::factory()->for($this->project)->create([
+            'version' => '1.4.0',
+            'status' => ReleaseStatus::Observed,
+        ]);
+    });
+
+    $this->service->ingest($this->project, [
+        'message' => 'Boom',
+        'environment' => 'production',
+        'version' => 'v1.4.0',
+    ]);
+
+    expect($competitor)->not->toBeNull()
+        ->and($environment->refresh()->current_version)->toBe('1.4.0')
+        ->and($environment->last_seen_at)->not->toBeNull();
 });
