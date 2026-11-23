@@ -7,7 +7,7 @@ namespace Modules\SAO\Services;
 use Carbon\CarbonInterface;
 use Illuminate\Contracts\Database\Query\Builder as QueryBuilder;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Support\Collection;
+use Illuminate\Database\Eloquent\Collection;
 use Modules\SAO\Models\Deployment;
 use Modules\SAO\Models\IngestEvent;
 use Modules\SAO\Models\Project;
