@@ -18,7 +18,7 @@ final class ProjectFactory extends Factory
     protected $model = Project::class;
 
     /**
-     * @return array<string, mixed>
+     * @return array<model-property<Project>, mixed>
      */
     public function definition(): array
     {

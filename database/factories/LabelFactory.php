@@ -19,7 +19,7 @@ final class LabelFactory extends Factory
     protected $model = Label::class;
 
     /**
-     * @return array<string, mixed>
+     * @return array<model-property<Label>, mixed>
      */
     public function definition(): array
     {

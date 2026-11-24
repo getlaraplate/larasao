@@ -20,7 +20,7 @@ final class WorkflowTransitionFactory extends Factory
     protected $model = WorkflowTransition::class;
 
     /**
-     * @return array<string, mixed>
+     * @return array<model-property<WorkflowTransition>, mixed>
      */
     public function definition(): array
     {

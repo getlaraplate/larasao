@@ -19,7 +19,7 @@ final class SignalOccurrenceFactory extends Factory
     protected $model = SignalOccurrence::class;
 
     /**
-     * @return array<string, mixed>
+     * @return array<model-property<SignalOccurrence>, mixed>
      */
     public function definition(): array
     {

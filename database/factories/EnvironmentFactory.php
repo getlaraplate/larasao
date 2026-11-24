@@ -19,7 +19,7 @@ final class EnvironmentFactory extends Factory
     protected $model = Environment::class;
 
     /**
-     * @return array<string, mixed>
+     * @return array<model-property<Environment>, mixed>
      */
     public function definition(): array
     {

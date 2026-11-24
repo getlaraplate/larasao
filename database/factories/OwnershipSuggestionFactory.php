@@ -21,7 +21,7 @@ final class OwnershipSuggestionFactory extends Factory
     protected $model = OwnershipSuggestion::class;
 
     /**
-     * @return array<string, mixed>
+     * @return array<model-property<OwnershipSuggestion>, mixed>
      */
     public function definition(): array
     {

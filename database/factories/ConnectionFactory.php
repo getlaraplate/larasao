@@ -20,7 +20,7 @@ final class ConnectionFactory extends Factory
     protected $model = Connection::class;
 
     /**
-     * @return array<string, mixed>
+     * @return array<model-property<Connection>, mixed>
      */
     public function definition(): array
     {

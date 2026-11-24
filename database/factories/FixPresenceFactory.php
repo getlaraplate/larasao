@@ -20,7 +20,7 @@ final class FixPresenceFactory extends Factory
     protected $model = FixPresence::class;
 
     /**
-     * @return array<string, mixed>
+     * @return array<model-property<FixPresence>, mixed>
      */
     public function definition(): array
     {

@@ -19,7 +19,7 @@ final class SignalAliasFactory extends Factory
     protected $model = SignalAlias::class;
 
     /**
-     * @return array<string, mixed>
+     * @return array<model-property<SignalAlias>, mixed>
      */
     public function definition(): array
     {

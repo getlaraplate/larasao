@@ -20,7 +20,7 @@ final class DeploymentFactory extends Factory
     protected $model = Deployment::class;
 
     /**
-     * @return array<string, mixed>
+     * @return array<model-property<Deployment>, mixed>
      */
     public function definition(): array
     {

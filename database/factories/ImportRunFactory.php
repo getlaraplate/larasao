@@ -21,7 +21,7 @@ final class ImportRunFactory extends Factory
     protected $model = ImportRun::class;
 
     /**
-     * @return array<string, mixed>
+     * @return array<model-property<ImportRun>, mixed>
      */
     public function definition(): array
     {

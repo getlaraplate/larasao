@@ -18,7 +18,7 @@ final class WorkflowSchemeFactory extends Factory
     protected $model = WorkflowScheme::class;
 
     /**
-     * @return array<string, mixed>
+     * @return array<model-property<WorkflowScheme>, mixed>
      */
     public function definition(): array
     {

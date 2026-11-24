@@ -20,7 +20,7 @@ final class ReleaseTagFactory extends Factory
     protected $model = ReleaseTag::class;
 
     /**
-     * @return array<string, mixed>
+     * @return array<model-property<ReleaseTag>, mixed>
      */
     public function definition(): array
     {

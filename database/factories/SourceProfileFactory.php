@@ -18,7 +18,7 @@ final class SourceProfileFactory extends Factory
     protected $model = SourceProfile::class;
 
     /**
-     * @return array<string, mixed>
+     * @return array<model-property<SourceProfile>, mixed>
      */
     public function definition(): array
     {

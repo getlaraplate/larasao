@@ -20,7 +20,7 @@ final class ClosurePolicyFactory extends Factory
     protected $model = ClosurePolicy::class;
 
     /**
-     * @return array<string, mixed>
+     * @return array<model-property<ClosurePolicy>, mixed>
      */
     public function definition(): array
     {

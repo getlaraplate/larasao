@@ -20,7 +20,7 @@ final class TicketCommentFactory extends Factory
     protected $model = TicketComment::class;
 
     /**
-     * @return array<string, mixed>
+     * @return array<model-property<TicketComment>, mixed>
      */
     public function definition(): array
     {
