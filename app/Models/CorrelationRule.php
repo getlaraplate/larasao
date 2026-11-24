@@ -20,6 +20,21 @@ use Override;
  * `target` matches `pattern`, the event belongs to `project` (optionally with
  * an `environment`). Rules are evaluated by priority, lower first, then by id,
  * and may be scoped to one connection and/or one source profile.
+ *
+ * @property int $id
+ * @property int $priority Lower wins
+ * @property bool $is_active
+ * @property CorrelationTarget $target The canonical field the pattern is compared with
+ * @property MatchType $match
+ * @property string $pattern
+ * @property int|null $connection_id Scope: only events received on this connection
+ * @property int|null $source_profile_id Scope: only events normalized by this profile
+ * @property int $project_id
+ * @property string|null $environment Environment name written on the occurrence; no Environment row is created from it
+ * @property \Carbon\CarbonImmutable $created_at
+ * @property \Carbon\CarbonImmutable $updated_at
+ * @property \Carbon\CarbonImmutable|null $deleted_at
+ * @property bool|null $is_deleted Whether the entity is deleted
  */
 final class CorrelationRule extends Model implements IActivatableModel
 {

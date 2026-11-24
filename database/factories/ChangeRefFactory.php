@@ -21,7 +21,7 @@ final class ChangeRefFactory extends Factory
     protected $model = ChangeRef::class;
 
     /**
-     * @return array<string, mixed>
+     * @return array<model-property<ChangeRef>, mixed>
      */
     public function definition(): array
     {

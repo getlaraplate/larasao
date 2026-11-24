@@ -21,7 +21,7 @@ final class TicketLinkFactory extends Factory
     protected $model = TicketLink::class;
 
     /**
-     * @return array<string, mixed>
+     * @return array<model-property<TicketLink>, mixed>
      */
     public function definition(): array
     {

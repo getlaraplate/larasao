@@ -18,6 +18,16 @@ use Override;
  * A user's stored ticket search. `criteria` holds the serialised
  * {@see TicketSearchCriteria}; a null `project_id` means the filter spans every
  * project the user can see.
+ *
+ * @property int $id
+ * @property int $user_id
+ * @property int|null $project_id Null means the filter spans every project the user can see
+ * @property string $name
+ * @property \Carbon\CarbonImmutable $created_at
+ * @property \Carbon\CarbonImmutable $updated_at
+ * @property \Carbon\CarbonImmutable|null $deleted_at
+ * @property bool|null $is_deleted Whether the entity is deleted
+ * @property array<array-key, mixed> $criteria
  */
 final class SavedFilter extends Model
 {

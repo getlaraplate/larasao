@@ -16,6 +16,15 @@ use Override;
 /**
  * A concrete VCS tag realizing a {@see Release}. A `stable` tag makes the
  * release shippable; a `candidate` keeps a testable reference for staging.
+ *
+ * @property int $id
+ * @property int $release_id
+ * @property string $tag The concrete VCS tag, e.g. v1.4.0 or v1.4.0-rc.1
+ * @property ReleaseTagKind $kind
+ * @property \Carbon\CarbonImmutable $created_at
+ * @property \Carbon\CarbonImmutable $updated_at
+ * @property \Carbon\CarbonImmutable|null $deleted_at
+ * @property bool|null $is_deleted Whether the entity is deleted
  */
 final class ReleaseTag extends Model implements IsPartOfParent
 {

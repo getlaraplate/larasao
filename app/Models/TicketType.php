@@ -14,6 +14,18 @@ use Override;
 /**
  * Types are global and enabled per project through a pivot, so that "bug" is
  * defined once rather than once per project.
+ *
+ * @property int $id
+ * @property string $name
+ * @property string $slug
+ * @property string|null $icon
+ * @property string $colour
+ * @property int $workflow_scheme_id
+ * @property bool $is_defect Machine-readable hook: phase 2 creates tickets of this type from errors
+ * @property \Carbon\CarbonImmutable $created_at
+ * @property \Carbon\CarbonImmutable $updated_at
+ * @property \Carbon\CarbonImmutable|null $deleted_at
+ * @property bool|null $is_deleted Whether the entity is deleted
  */
 final class TicketType extends Model
 {

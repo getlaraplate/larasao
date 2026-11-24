@@ -15,6 +15,12 @@ use Override;
  * The assignment of a label to a ticket. Modelled explicitly so the moment a
  * label was attached (or last touched) is recorded and observable, rather than
  * living in an anonymous pivot row.
+ *
+ * @property int $id
+ * @property int $ticket_id
+ * @property int $label_id
+ * @property \Carbon\CarbonImmutable $created_at
+ * @property \Carbon\CarbonImmutable $updated_at
  */
 final class TicketLabel extends Pivot
 {

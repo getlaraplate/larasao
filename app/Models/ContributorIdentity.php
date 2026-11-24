@@ -17,6 +17,15 @@ use Override;
  * user, per provider. It is the directory that lets the ownership resolvers
  * turn a commit or CODEOWNERS entry into a real user; an empty `provider` means
  * the mapping applies to any provider.
+ *
+ * @property int $id
+ * @property int $user_id
+ * @property string $provider Driver key (github/gitlab/…); '' means any provider
+ * @property string $identity A VCS handle (octocat) or a git author email
+ * @property \Carbon\CarbonImmutable $created_at
+ * @property \Carbon\CarbonImmutable $updated_at
+ * @property \Carbon\CarbonImmutable|null $deleted_at
+ * @property bool|null $is_deleted Whether the entity is deleted
  */
 final class ContributorIdentity extends Model
 {

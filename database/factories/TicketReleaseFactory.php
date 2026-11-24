@@ -21,7 +21,7 @@ final class TicketReleaseFactory extends Factory
     protected $model = TicketRelease::class;
 
     /**
-     * @return array<string, mixed>
+     * @return array<model-property<TicketRelease>, mixed>
      */
     public function definition(): array
     {

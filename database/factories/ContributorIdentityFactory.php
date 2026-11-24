@@ -19,7 +19,7 @@ final class ContributorIdentityFactory extends Factory
     protected $model = ContributorIdentity::class;
 
     /**
-     * @return array<string, mixed>
+     * @return array<model-property<ContributorIdentity>, mixed>
      */
     public function definition(): array
     {

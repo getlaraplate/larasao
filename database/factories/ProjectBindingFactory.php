@@ -22,7 +22,7 @@ final class ProjectBindingFactory extends Factory
     protected $model = ProjectBinding::class;
 
     /**
-     * @return array<string, mixed>
+     * @return array<model-property<ProjectBinding>, mixed>
      */
     public function definition(): array
     {

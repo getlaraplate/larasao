@@ -21,7 +21,7 @@ final class CorrelationRuleFactory extends Factory
     protected $model = CorrelationRule::class;
 
     /**
-     * @return array<string, mixed>
+     * @return array<model-property<CorrelationRule>, mixed>
      */
     public function definition(): array
     {

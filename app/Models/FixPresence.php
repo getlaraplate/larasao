@@ -21,6 +21,17 @@ use Override;
  *
  * `contained` is null when the VCS could not tell; such a row is asked again on
  * the next check and never stands for "not contained".
+ *
+ * @property int $id
+ * @property int $change_ref_id
+ * @property int $environment_id
+ * @property string $deployed_commit The environment commit the answer is about
+ * @property bool|null $contained Whether the deployed commit contains the fix commit; null when the VCS could not tell, retried
+ * @property \Carbon\CarbonImmutable $checked_at When the VCS was last asked
+ * @property \Carbon\CarbonImmutable $created_at
+ * @property \Carbon\CarbonImmutable $updated_at
+ * @property \Carbon\CarbonImmutable|null $deleted_at
+ * @property bool|null $is_deleted Whether the entity is deleted
  */
 final class FixPresence extends Model implements IsPartOfParent
 {

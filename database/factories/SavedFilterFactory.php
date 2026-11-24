@@ -21,7 +21,7 @@ final class SavedFilterFactory extends Factory
     protected $model = SavedFilter::class;
 
     /**
-     * @return array<string, mixed>
+     * @return array<model-property<SavedFilter>, mixed>
      */
     public function definition(): array
     {

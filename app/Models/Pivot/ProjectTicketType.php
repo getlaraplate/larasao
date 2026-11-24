@@ -11,6 +11,14 @@ use Override;
 /**
  * Which types a project offers, which of them is preselected, and — optionally —
  * a workflow scheme that replaces the type's own for this project alone.
+ *
+ * @property int $id
+ * @property int $project_id
+ * @property int $ticket_type_id
+ * @property bool $is_default
+ * @property int|null $workflow_scheme_id Optional per-project override; null means the type own scheme applies
+ * @property \Carbon\CarbonImmutable $created_at
+ * @property \Carbon\CarbonImmutable $updated_at
  */
 final class ProjectTicketType extends Pivot
 {

@@ -20,7 +20,7 @@ final class ReleaseFactory extends Factory
     protected $model = Release::class;
 
     /**
-     * @return array<string, mixed>
+     * @return array<model-property<Release>, mixed>
      */
     public function definition(): array
     {

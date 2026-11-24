@@ -19,6 +19,22 @@ use Override;
  * terminal `succeeded` deployment's `finished_at` is when that version started
  * running. The pair (connection, external_id) is unique so a re-delivery is
  * recorded once.
+ *
+ * @property int $id
+ * @property int $project_id
+ * @property int|null $environment_id
+ * @property int|null $release_id
+ * @property int|null $connection_id
+ * @property string $version The deployed version as reported, authoritative even without a release_id
+ * @property DeploymentStatus $status
+ * @property string|null $external_id Source id / delivery id — idempotency key together with connection_id
+ * @property \Carbon\CarbonImmutable $started_at When the deploy/rollout began
+ * @property \Carbon\CarbonImmutable|null $finished_at Terminal timestamp — the window anchor for release health
+ * @property \Carbon\CarbonImmutable $created_at
+ * @property \Carbon\CarbonImmutable $updated_at
+ * @property \Carbon\CarbonImmutable|null $deleted_at
+ * @property bool|null $is_deleted Whether the entity is deleted
+ * @property array<array-key, mixed>|null $meta Driver-specific extras: canary weight, sha, actor
  */
 final class Deployment extends Model
 {

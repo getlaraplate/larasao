@@ -16,6 +16,15 @@ use Override;
  * A superseded `group_key` pointing at its {@see Signal}. The mechanism that
  * lets the fingerprint algorithm evolve without splitting history: when a key
  * format changes, the old key is aliased to the signal it used to open.
+ *
+ * @property int $id
+ * @property int $signal_id
+ * @property string $group_key A superseded group key that now points at this signal
+ * @property int $algo_version
+ * @property \Carbon\CarbonImmutable $created_at
+ * @property \Carbon\CarbonImmutable $updated_at
+ * @property \Carbon\CarbonImmutable|null $deleted_at
+ * @property bool|null $is_deleted Whether the entity is deleted
  */
 final class SignalAlias extends Model implements IsPartOfParent
 {

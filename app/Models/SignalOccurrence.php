@@ -16,6 +16,18 @@ use Override;
  * One individual occurrence of a {@see Signal}, carrying the environment it came
  * from and optional payload context. Kept with configurable retention — needed
  * for "recurring for three days" and closure evidence, not forever.
+ *
+ * @property int $id
+ * @property int $signal_id
+ * @property string|null $environment The deployed environment the occurrence came from
+ * @property string|null $affected_version The reporting software version detected in the payload, normalized; kept even when not censused
+ * @property int|null $affected_release_id
+ * @property \Carbon\CarbonImmutable|null $occurred_at
+ * @property \Carbon\CarbonImmutable $created_at
+ * @property \Carbon\CarbonImmutable $updated_at
+ * @property \Carbon\CarbonImmutable|null $deleted_at
+ * @property bool|null $is_deleted Whether the entity is deleted
+ * @property array<array-key, mixed>|null $context Optional tenant/user/request context from the payload
  */
 final class SignalOccurrence extends Model implements IsPartOfParent
 {

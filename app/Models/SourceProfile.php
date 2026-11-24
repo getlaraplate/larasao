@@ -17,6 +17,16 @@ use Override;
  * applies to, and the field bindings (canonical field => payload dot-path) that
  * turn a payload into canonical fields. Supporting a new source is adding a row,
  * not writing code.
+ *
+ * @property int $id
+ * @property string $name
+ * @property bool $is_active
+ * @property \Carbon\CarbonImmutable $created_at
+ * @property \Carbon\CarbonImmutable $updated_at
+ * @property \Carbon\CarbonImmutable|null $deleted_at
+ * @property bool|null $is_deleted Whether the entity is deleted
+ * @property array<array-key, mixed> $matchers Rules selecting which payloads this profile applies to
+ * @property array<array-key, mixed> $field_bindings Canonical field => payload dot-path
  */
 final class SourceProfile extends Model implements IActivatableModel
 {

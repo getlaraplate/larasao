@@ -20,7 +20,7 @@ final class ClosureAuditFactory extends Factory
     protected $model = ClosureAudit::class;
 
     /**
-     * @return array<string, mixed>
+     * @return array<model-property<ClosureAudit>, mixed>
      */
     public function definition(): array
     {

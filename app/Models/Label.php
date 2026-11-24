@@ -17,6 +17,15 @@ use Override;
 /**
  * A label is project-scoped: the same name may exist in different projects but
  * is unique within one.
+ *
+ * @property int $id
+ * @property int $project_id
+ * @property string $name
+ * @property string $colour
+ * @property \Carbon\CarbonImmutable $created_at
+ * @property \Carbon\CarbonImmutable $updated_at
+ * @property \Carbon\CarbonImmutable|null $deleted_at
+ * @property bool|null $is_deleted Whether the entity is deleted
  */
 final class Label extends Model implements IsPartOfParent
 {

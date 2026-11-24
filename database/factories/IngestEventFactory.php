@@ -20,7 +20,7 @@ final class IngestEventFactory extends Factory
     protected $model = IngestEvent::class;
 
     /**
-     * @return array<string, mixed>
+     * @return array<model-property<IngestEvent>, mixed>
      */
     public function definition(): array
     {

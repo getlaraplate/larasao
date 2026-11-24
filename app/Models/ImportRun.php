@@ -21,6 +21,24 @@ use Override;
  * a crash, a redeploy or a requeue — resumes from the exact page it stopped on
  * instead of restarting. The run flips to {@see ImportRunStatus::Completed} only
  * when the page walk is exhausted.
+ *
+ * @property int $id
+ * @property int $binding_id
+ * @property ImportScope $scope
+ * @property ImportRunStatus $status
+ * @property string|null $cursor The driver next-page cursor to resume from; null means start/exhausted
+ * @property int $created_count
+ * @property int $updated_count
+ * @property int $filtered_count
+ * @property int $skipped_count
+ * @property int $comment_count Comments imported for this run history
+ * @property int $attachment_count Attachments imported for this run history
+ * @property int $pages Total pages walked across every resume of this run
+ * @property bool $truncated The last invocation hit the per-run page cap and stopped short
+ * @property \Carbon\CarbonImmutable $created_at
+ * @property \Carbon\CarbonImmutable $updated_at
+ * @property \Carbon\CarbonImmutable|null $deleted_at
+ * @property bool|null $is_deleted Whether the entity is deleted
  */
 final class ImportRun extends Model implements IsPartOfParent
 {
