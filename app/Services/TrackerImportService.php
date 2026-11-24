@@ -11,6 +11,7 @@ use Modules\SAO\Drivers\Contracts\IssuesCapability;
 use Modules\SAO\Drivers\DriverRegistry;
 use Modules\SAO\Drivers\Support\BindingContext;
 use Modules\SAO\Drivers\Support\ConnectionCredentialResolver;
+use Modules\SAO\Drivers\Support\ReadsExternalPayloads;
 use Modules\SAO\Enums\Capability;
 use Modules\SAO\Enums\ImportRunStatus;
 use Modules\SAO\Enums\ImportScope;
@@ -47,6 +48,8 @@ use Spatie\MediaLibrary\MediaCollections\Models\Media;
  */
 final readonly class TrackerImportService
 {
+    use ReadsExternalPayloads;
+
     private const int MAX_PAGES_PER_INVOCATION = 5000;
 
     private const string COMMENT_SOURCE_PREFIX = 'tracker-import:comment:';
@@ -158,7 +161,7 @@ final readonly class TrackerImportService
      */
     private function importHistory(IssueHistoryCapability $history, BindingContext $context, ProjectBinding $binding, array $issue): array
     {
-        $remoteId = (string) ($issue['remote_id'] ?? '');
+        $remoteId = self::stringOr($issue['remote_id'] ?? null);
 
         $link = TicketLink::query()
             ->where('connection_id', $binding->connection_id)
@@ -194,8 +197,8 @@ final readonly class TrackerImportService
      */
     private function importComment(Ticket $ticket, array $comment): bool
     {
-        $remoteId = (string) ($comment['remote_id'] ?? '');
-        $body = (string) ($comment['body'] ?? '');
+        $remoteId = self::stringOr($comment['remote_id'] ?? null);
+        $body = self::stringOr($comment['body'] ?? null);
 
         if ($remoteId === '' || $body === '') {
             return false;
@@ -221,21 +224,21 @@ final readonly class TrackerImportService
      */
     private function importAttachment(Ticket $ticket, array $attachment): bool
     {
-        $remoteId = (string) ($attachment['remote_id'] ?? '');
-        $filename = (string) ($attachment['filename'] ?? '');
+        $remoteId = self::stringOr($attachment['remote_id'] ?? null);
+        $filename = self::stringOr($attachment['filename'] ?? null);
 
         if ($remoteId === '' || $filename === '') {
             return false;
         }
 
         $alreadyStored = $ticket->getMedia(self::ATTACHMENT_COLLECTION)
-            ->contains(static fn (Media $media): bool => $remoteId === (string) $media->getCustomProperty('remote_id'));
+            ->contains(static fn (Media $media): bool => $remoteId === self::stringOr($media->getCustomProperty('remote_id')));
 
         if ($alreadyStored) {
             return false;
         }
 
-        $ticket->addMediaFromString((string) ($attachment['contents'] ?? ''))
+        $ticket->addMediaFromString(self::stringOr($attachment['contents'] ?? null))
             ->usingFileName($filename)
             ->withCustomProperties(['remote_id' => $remoteId])
             ->toMediaCollection(self::ATTACHMENT_COLLECTION);
@@ -258,7 +261,7 @@ final readonly class TrackerImportService
             return false;
         }
 
-        $category = StatusCategory::tryFrom((string) (($binding->status_map ?? [])[$remoteStatus] ?? ''));
+        $category = StatusCategory::tryFrom(($binding->status_map ?? [])[$remoteStatus] ?? '');
 
         return $category?->isTerminal() ?? false;
     }

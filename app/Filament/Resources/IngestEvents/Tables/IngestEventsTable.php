@@ -11,6 +11,7 @@ use Filament\Notifications\Notification;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Gate;
 use Modules\Core\Filament\Utils\HasTable;
@@ -84,11 +85,15 @@ final class IngestEventsTable
                     ->authorize(static fn (): bool => Gate::allows('reprocess', new IngestEvent))
                     ->requiresConfirmation()
                     ->deselectRecordsAfterCompletion()
-                    ->action(static function (Collection $records): void {
-                        self::notifyOutcomes(app(IngestReprocessService::class)->reprocessMany(
-                            IngestEvent::query()->whereKey($records->modelKeys()),
-                        ));
-                    }),
+                    ->action(
+                        /**
+                         * @param  EloquentCollection<int, IngestEvent>  $records
+                         */
+                        static function (EloquentCollection $records): void {
+                            self::notifyOutcomes(app(IngestReprocessService::class)->reprocessMany(
+                                IngestEvent::query()->whereKey($records->modelKeys()),
+                            ));
+                        }),
             ]),
         ]);
     }

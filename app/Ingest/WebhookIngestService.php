@@ -61,7 +61,7 @@ final readonly class WebhookIngestService
             return $this->finish($event, IngestStatus::Discarded, 'no-matching-profile');
         }
 
-        $event->source_profile_id = $profile->getKey();
+        $event->source_profile_id = $profile->id;
         $canonical = $this->normalizer->normalize($profile, $payload);
 
         $connection = $event->getRelationValue('connection');
@@ -75,9 +75,9 @@ final readonly class WebhookIngestService
 
         $signal = $this->signalIngest->ingest($correlation['project'], $canonical, $occurredAt);
 
-        $event->project_id = $correlation['project']->getKey();
+        $event->project_id = $correlation['project']->id;
         $event->winning_rule = $correlation['rule'];
-        $event->signal_id = $signal->getKey();
+        $event->signal_id = $signal->id;
 
         return $this->finish($event, IngestStatus::Ingested, 'signal-recorded');
     }

@@ -17,6 +17,7 @@ use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Model;
 use Modules\SAO\Enums\Capability;
 use Modules\SAO\Enums\SyncDirection;
+use Override;
 
 /**
  * A project's integration bindings: which connection serves which capability,

@@ -27,7 +27,7 @@ final readonly class TicketReleaseAttributor
     public function attach(Ticket $ticket, Release $release, TicketReleaseState $state): TicketRelease
     {
         if ($state === TicketReleaseState::Shipped && ! $this->hasStableTag($release)) {
-            throw UnstableResolutionReleaseException::make($release->getKey());
+            throw UnstableResolutionReleaseException::make($release->id);
         }
 
         $ticketRelease = TicketRelease::query()->firstOrNew([

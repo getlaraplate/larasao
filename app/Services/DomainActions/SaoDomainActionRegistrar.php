@@ -38,7 +38,7 @@ final class SaoDomainActionRegistrar
     {
         $registry->register(Ticket::class, 'transition', static fn (Ticket $record, array $payload, User $user): Ticket => resolve(WorkflowService::class)->transition(
             $record,
-            TicketStatus::findOrFail($payload['to_status_id']),
+            TicketStatus::query()->whereKey($payload['to_status_id'])->firstOrFail(),
             ChangeContext::forUser($user),
         ));
 

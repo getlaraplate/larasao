@@ -55,7 +55,7 @@ final readonly class CodeReferenceWriter
 
         $changeRef->url = $reference->url ?? $changeRef->url;
         $changeRef->source = $reference->source ?? $changeRef->source;
-        $changeRef->merged_at = $reference->mergedAt ?? $changeRef->merged_at;
+        $changeRef->merged_at = $reference->mergedAt?->toImmutable() ?? $changeRef->merged_at;
         $changeRef->base_ref = $reference->baseRef ?? $changeRef->base_ref;
         $changeRef->head_ref = $reference->headRef ?? $changeRef->head_ref;
         $changeRef->commit_sha = $this->resolveCommitSha($changeRef, $reference);

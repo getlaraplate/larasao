@@ -89,7 +89,7 @@ final class WorkflowService
             throw TransitionNotAllowedException::between($ticket, $to);
         }
 
-        $ticket->ticket_status_id = $to->getKey();
+        $ticket->ticket_status_id = $to->id;
         $ticket->save();
 
         return $ticket;

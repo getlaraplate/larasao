@@ -110,7 +110,7 @@ final readonly class HttpVersionDriver implements DriverInterface, VersionProbeC
      * @throws ProbeException
      */
     #[Override]
-    public function probe(BindingContext $context, Environment $environment): ?ProbedVersion
+    public function probe(BindingContext $context, Environment $environment): ProbedVersion
     {
         $settings = $this->settings($context);
         $url = $this->url($environment, self::stringOr($settings['path'] ?? null, self::DEFAULT_PATH));

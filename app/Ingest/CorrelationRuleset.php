@@ -49,7 +49,7 @@ final class CorrelationRuleset
             }
 
             if ($rule->project instanceof Project) {
-                return $this->result($canonical, $rule->project, "rule:{$rule->getKey()}", $rule->environment);
+                return $this->result($canonical, $rule->project, "rule:{$rule->id}", $rule->environment);
             }
         }
 
@@ -58,7 +58,7 @@ final class CorrelationRuleset
         if ($projectKey !== null) {
             $project = Project::query()->where('key_prefix', $projectKey)->first();
 
-            if ($project instanceof Project && ($logsProjectIds === null || in_array((int) $project->getKey(), $logsProjectIds, true))) {
+            if ($project instanceof Project && ($logsProjectIds === null || in_array($project->id, $logsProjectIds, true))) {
                 return $this->result($canonical, $project, 'project_key', null);
             }
         }
@@ -104,13 +104,13 @@ final class CorrelationRuleset
      */
     private function logsBindings(CorrelationScope $scope): array
     {
-        return ProjectBinding::query()
+        return array_values(ProjectBinding::query()
             ->with('project')
             ->ofLiveProject()
             ->where('connection_id', $scope->connectionId)
             ->where('capability', Capability::Logs)
             ->get()
-            ->all();
+            ->all());
     }
 
     /**

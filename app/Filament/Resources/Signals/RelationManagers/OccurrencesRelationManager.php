@@ -9,6 +9,7 @@ use Filament\Schemas\Schema;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Model;
+use Override;
 
 /**
  * The occurrences of a signal, read-only: occurrences are recorded by the ingest

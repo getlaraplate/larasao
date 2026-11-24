@@ -52,7 +52,7 @@ final readonly class TicketCreationService
 
         $ticket->number = $allocated['number'];
         $ticket->key = $allocated['key'];
-        $ticket->ticket_status_id = $status->getKey();
+        $ticket->ticket_status_id = $status->id;
 
         $ticket->save();
 

@@ -25,11 +25,9 @@ final readonly class CorrelationScope
      */
     public static function forProfile(?Connection $connection, SourceProfile $profile): self
     {
-        $connectionId = $connection?->getKey();
-
         return new self(
-            $connectionId === null ? null : (int) $connectionId,
-            (int) $profile->getKey(),
+            $connection?->id,
+            $profile->id,
             false,
         );
     }
@@ -40,6 +38,6 @@ final readonly class CorrelationScope
      */
     public static function forLogs(Connection $connection): self
     {
-        return new self((int) $connection->getKey(), null, true);
+        return new self($connection->id, null, true);
     }
 }

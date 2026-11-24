@@ -73,9 +73,7 @@ final readonly class IngestReprocessService
 
     private function attempt(IngestEvent $event, bool $dryRun): ReprocessOutcome
     {
-        // getKey() is declared mixed on every Eloquent model; this is a saved
-        // record with an auto-incrementing key.
-        $eventId = (int) $event->getKey();
+        $eventId = $event->id;
         $before = $event->status;
 
         try {

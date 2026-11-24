@@ -94,7 +94,7 @@ final readonly class SignalIngestService
         $this->recordOccurrenceOn($signal, $occurredAt, $isReplay);
 
         $census = $this->versionCensus->record(
-            $project->getKey(),
+            $project->id,
             is_string($payload['version'] ?? null) ? $payload['version'] : null,
         );
 
@@ -249,11 +249,11 @@ final readonly class SignalIngestService
         }
 
         if ($signal->first_seen_at === null || $occurredAt->lessThan($signal->first_seen_at)) {
-            $signal->first_seen_at = $occurredAt;
+            $signal->first_seen_at = $occurredAt->toImmutable();
         }
 
         if ($signal->last_seen_at === null || $occurredAt->greaterThan($signal->last_seen_at)) {
-            $signal->last_seen_at = $occurredAt;
+            $signal->last_seen_at = $occurredAt->toImmutable();
         }
 
         if ($signal->usesTimestamps()) {

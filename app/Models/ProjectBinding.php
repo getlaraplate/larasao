@@ -7,6 +7,7 @@ namespace Modules\SAO\Models;
 use Illuminate\Database\Eloquent\Attributes\Scope;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\Factory;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Modules\Core\Contracts\IsPartOfParent;
 use Modules\Core\Overrides\Model;
@@ -35,9 +36,9 @@ use Override;
  * @property \Carbon\CarbonImmutable $updated_at
  * @property \Carbon\CarbonImmutable|null $deleted_at
  * @property bool|null $is_deleted Whether the entity is deleted
- * @property array<array-key, mixed>|null $status_map Remote status name → canonical category
- * @property array<array-key, mixed>|null $priority_map
- * @property array<array-key, mixed>|null $config Binding-scoped non-secret configuration
+ * @property array<string, string>|null $status_map Remote status name → canonical category
+ * @property array<string, string>|null $priority_map
+ * @property array<string, mixed>|null $config Binding-scoped non-secret configuration
  */
 final class ProjectBinding extends Model implements IsPartOfParent
 {
@@ -91,6 +92,23 @@ final class ProjectBinding extends Model implements IsPartOfParent
     }
 
     /**
+     * The connection the binding runs on. A binding outlives a soft-deleted connection
+     * but cannot run without it, so its absence is reported by name.
+     *
+     * @throws ModelNotFoundException
+     */
+    public function liveConnection(): Connection
+    {
+        $connection = $this->remoteConnection;
+
+        if (! $connection instanceof Connection) {
+            throw (new ModelNotFoundException)->setModel(Connection::class, [$this->connection_id]);
+        }
+
+        return $connection;
+    }
+
+    /**
      * Build the resolved view a capability call operates on: the connection
      * (base URL + resolved credentials) plus this binding's remote identifier,
      * config and maps.
@@ -102,7 +120,7 @@ final class ProjectBinding extends Model implements IsPartOfParent
      */
     public function bindingContext(ConnectionCredentialResolver $resolver, ?DriverInterface $driver = null): BindingContext
     {
-        $connection = $this->remoteConnection;
+        $connection = $this->liveConnection();
         $credentials = $driver instanceof DriverInterface
             ? $resolver->resolveFor($connection, $driver)
             : $resolver->resolve($connection);
