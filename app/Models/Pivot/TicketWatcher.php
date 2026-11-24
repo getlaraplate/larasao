@@ -14,6 +14,12 @@ use Override;
 /**
  * A user watching a ticket. Modelled explicitly so when a watch started (or
  * ended, on detach) is recorded and observable.
+ *
+ * @property int $id
+ * @property int $ticket_id
+ * @property int $user_id
+ * @property \Carbon\CarbonImmutable $created_at
+ * @property \Carbon\CarbonImmutable $updated_at
  */
 final class TicketWatcher extends Pivot
 {

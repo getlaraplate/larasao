@@ -17,6 +17,15 @@ use Override;
 /**
  * A typed link from one ticket to another. Direction is carried by
  * source/target; the meaning of the direction comes from {@see TicketRelationType}.
+ *
+ * @property int $id
+ * @property int $source_ticket_id
+ * @property int $target_ticket_id
+ * @property TicketRelationType $type
+ * @property \Carbon\CarbonImmutable $created_at
+ * @property \Carbon\CarbonImmutable $updated_at
+ * @property \Carbon\CarbonImmutable|null $deleted_at
+ * @property bool|null $is_deleted Whether the entity is deleted
  */
 final class TicketRelation extends Model implements IsPartOfParent
 {

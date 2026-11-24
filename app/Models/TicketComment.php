@@ -16,6 +16,18 @@ use Modules\SAO\Enums\SAOTables;
 use Modules\SAO\Exceptions\ImmutableSystemCommentException;
 use Override;
 
+/**
+ * @property int $id
+ * @property int $ticket_id
+ * @property int|null $author_id Null for system comments
+ * @property CommentOrigin $origin
+ * @property string|null $source_key Which automation wrote it, for system comments
+ * @property string $body
+ * @property \Carbon\CarbonImmutable $created_at
+ * @property \Carbon\CarbonImmutable $updated_at
+ * @property \Carbon\CarbonImmutable|null $deleted_at
+ * @property bool|null $is_deleted Whether the entity is deleted
+ */
 final class TicketComment extends Model implements IsPartOfParent
 {
     /**

@@ -18,6 +18,22 @@ use Override;
  * matched, the correlation rule that won, the resulting signal, and — always —
  * an explicit status and outcome. It is what makes silence auditable: every
  * discard says why, without reading application logs.
+ *
+ * @property int $id
+ * @property int|null $connection_id Null for the internal (host-app) source
+ * @property IngestPipeline $pipeline The ingest path that recorded the event: profile, logs, deploy or code
+ * @property string $delivery_id The id the source assigned to this delivery
+ * @property int|null $source_profile_id
+ * @property IngestStatus $status
+ * @property string|null $outcome Explicit reason for the status (reliable silence)
+ * @property int|null $project_id
+ * @property string|null $winning_rule Which correlation rule attached the event
+ * @property int|null $signal_id
+ * @property \Carbon\CarbonImmutable|null $reprocessed_at When the event was last replayed through its pipeline
+ * @property \Carbon\CarbonImmutable $created_at
+ * @property \Carbon\CarbonImmutable $updated_at
+ * @property \Carbon\CarbonImmutable|null $deleted_at
+ * @property bool|null $is_deleted Whether the entity is deleted
  */
 final class IngestEvent extends Model
 {

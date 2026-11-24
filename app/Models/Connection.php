@@ -25,6 +25,18 @@ use Override;
  * that overrides it. The raw secret is never rendered back to a UI. A
  * connection may expose only a subset of its driver's capabilities, enforced on
  * save.
+ *
+ * @property int $id
+ * @property string $driver_key Registered driver this connection instantiates
+ * @property string $name
+ * @property string|null $base_url Non-secret endpoint coordinate
+ * @property string|null $credential_ref Env/config key that overrides the encrypted credential when set
+ * @property ConnectionHealth $health_state Last known reachability
+ * @property \Carbon\CarbonImmutable|null $last_checked_at
+ * @property \Carbon\CarbonImmutable $created_at
+ * @property \Carbon\CarbonImmutable $updated_at
+ * @property \Carbon\CarbonImmutable|null $deleted_at
+ * @property bool|null $is_deleted Whether the entity is deleted
  */
 final class Connection extends Model
 {

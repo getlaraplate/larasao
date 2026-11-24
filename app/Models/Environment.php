@@ -16,6 +16,19 @@ use Override;
  * A deployment target of a project — production, staging, and so on. It records
  * the version last seen running and when, so the deploy census can answer "what
  * runs where" with an honest freshness rather than an assumed one.
+ *
+ * @property int $id
+ * @property int $project_id
+ * @property string $name e.g. production, staging
+ * @property string|null $base_url Operator-set address probed for the running version; http or https
+ * @property string|null $current_version The version last seen running
+ * @property string|null $current_commit The commit last seen running
+ * @property string|null $current_branch The branch last seen running
+ * @property \Carbon\CarbonImmutable|null $last_seen_at When the version was last observed or probed
+ * @property \Carbon\CarbonImmutable $created_at
+ * @property \Carbon\CarbonImmutable $updated_at
+ * @property \Carbon\CarbonImmutable|null $deleted_at
+ * @property bool|null $is_deleted Whether the entity is deleted
  */
 final class Environment extends Model
 {

@@ -16,6 +16,15 @@ use Override;
 /**
  * Shareable across ticket types and projects — the valve that stops every new
  * type from spawning a new scheme.
+ *
+ * @property int $id
+ * @property string $name
+ * @property string|null $description
+ * @property bool $is_default At most one scheme is the default; setting a new one clears the previous
+ * @property \Carbon\CarbonImmutable $created_at
+ * @property \Carbon\CarbonImmutable $updated_at
+ * @property \Carbon\CarbonImmutable|null $deleted_at
+ * @property bool|null $is_deleted Whether the entity is deleted
  */
 final class WorkflowScheme extends Model
 {

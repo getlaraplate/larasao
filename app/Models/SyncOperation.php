@@ -15,6 +15,15 @@ use Override;
  * The idempotency ledger: one row per completed synchronization, keyed so a
  * retry with the same binding, ticket and content is recognised and skipped
  * rather than producing a second remote write.
+ *
+ * @property int $id
+ * @property int $binding_id
+ * @property string $idempotency_key Stable key over binding, ticket and content so a retry is a no-op
+ * @property SyncOutcome $outcome
+ * @property \Carbon\CarbonImmutable $created_at
+ * @property \Carbon\CarbonImmutable $updated_at
+ * @property \Carbon\CarbonImmutable|null $deleted_at
+ * @property bool|null $is_deleted Whether the entity is deleted
  */
 final class SyncOperation extends Model implements IsPartOfParent
 {

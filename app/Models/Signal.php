@@ -18,6 +18,20 @@ use Override;
  * across projects (the same bug in two projects yields two signals with the same
  * key, one per project — never auto-merged). `algo_version` records which
  * fingerprint algorithm produced the key, so the algorithm can evolve later.
+ *
+ * @property int $id
+ * @property int $project_id
+ * @property int|null $ticket_id
+ * @property string $group_key
+ * @property int $algo_version
+ * @property SignalState $state
+ * @property int $occurrence_count
+ * @property \Carbon\CarbonImmutable|null $first_seen_at
+ * @property \Carbon\CarbonImmutable|null $last_seen_at
+ * @property \Carbon\CarbonImmutable $created_at
+ * @property \Carbon\CarbonImmutable $updated_at
+ * @property \Carbon\CarbonImmutable|null $deleted_at
+ * @property bool|null $is_deleted Whether the entity is deleted
  */
 final class Signal extends Model
 {

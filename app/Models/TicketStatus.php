@@ -16,6 +16,16 @@ use Spatie\EloquentSortable\Sortable;
 /**
  * A status is global to the installation. Workflow schemes compose them, so
  * "In review" is defined once rather than once per scheme.
+ *
+ * @property int $id
+ * @property string $name
+ * @property StatusCategory $category Canonical meaning; phase 3 maps onto this, not onto the name
+ * @property string $colour
+ * @property int $order_column The display order of the status
+ * @property \Carbon\CarbonImmutable $created_at
+ * @property \Carbon\CarbonImmutable $updated_at
+ * @property \Carbon\CarbonImmutable|null $deleted_at
+ * @property bool|null $is_deleted Whether the entity is deleted
  */
 final class TicketStatus extends Model implements Sortable
 {

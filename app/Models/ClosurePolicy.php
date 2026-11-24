@@ -19,6 +19,16 @@ use Override;
  * when they all hold. The conditions are stored as plain `{key, config}` json
  * and built into predicates by `ClosureConditionRegistry`, so a policy is data,
  * not code.
+ *
+ * @property int $id
+ * @property int $project_id
+ * @property string $name
+ * @property ClosureAction $action
+ * @property bool $is_active
+ * @property \Carbon\CarbonImmutable $created_at
+ * @property \Carbon\CarbonImmutable $updated_at
+ * @property \Carbon\CarbonImmutable|null $deleted_at
+ * @property bool|null $is_deleted Whether the entity is deleted
  */
 final class ClosurePolicy extends Model implements IActivatableModel
 {

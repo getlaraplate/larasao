@@ -18,6 +18,16 @@ use Override;
  * is a suggestion and only that: SAO may propose ownership but never applies an
  * assignee automatically (D14). The evidence records the paths and rule-specific
  * data behind the choice so a human can judge it.
+ *
+ * @property int $id
+ * @property int $ticket_id
+ * @property int|null $suggested_user_id
+ * @property OwnershipRule $rule
+ * @property float $score
+ * @property \Carbon\CarbonImmutable $created_at
+ * @property \Carbon\CarbonImmutable $updated_at
+ * @property \Carbon\CarbonImmutable|null $deleted_at
+ * @property bool|null $is_deleted Whether the entity is deleted
  */
 final class OwnershipSuggestion extends Model
 {

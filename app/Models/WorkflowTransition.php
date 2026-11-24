@@ -16,6 +16,17 @@ use Override;
 /**
  * One permitted move within a scheme. A null `from_status_id` is the creation
  * transition, which is how a scheme declares the status a new ticket starts in.
+ *
+ * @property int $id
+ * @property int $workflow_scheme_id
+ * @property int|null $from_status_id Null means the creation transition: it declares the scheme initial status
+ * @property int $to_status_id
+ * @property string $label
+ * @property string|null $required_permission
+ * @property \Carbon\CarbonImmutable $created_at
+ * @property \Carbon\CarbonImmutable $updated_at
+ * @property \Carbon\CarbonImmutable|null $deleted_at
+ * @property bool|null $is_deleted Whether the entity is deleted
  */
 final class WorkflowTransition extends Model implements IsPartOfParent
 {

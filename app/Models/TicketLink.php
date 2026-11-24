@@ -15,6 +15,18 @@ use Override;
 /**
  * Links a SAO ticket to its counterpart in an external tracker. A ticket with no
  * link is internal; SAO remains authoritative for internal tickets.
+ *
+ * @property int $id
+ * @property int $ticket_id
+ * @property int $connection_id
+ * @property string $remote_id Identifier of the linked object in the external tracker
+ * @property string|null $url
+ * @property \Carbon\CarbonImmutable|null $last_synced_at
+ * @property string|null $last_sync_state
+ * @property \Carbon\CarbonImmutable $created_at
+ * @property \Carbon\CarbonImmutable $updated_at
+ * @property \Carbon\CarbonImmutable|null $deleted_at
+ * @property bool|null $is_deleted Whether the entity is deleted
  */
 final class TicketLink extends Model implements IsPartOfParent
 {

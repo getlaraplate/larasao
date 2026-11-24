@@ -18,6 +18,15 @@ use Override;
  * (ticket, release) is unique and the state is deliberately independent of the
  * ticket's own workflow status: a fix can be shipped in a release while its
  * ticket is still open, and vice versa.
+ *
+ * @property int $id
+ * @property int $ticket_id
+ * @property int $release_id
+ * @property TicketReleaseState $state
+ * @property \Carbon\CarbonImmutable $created_at
+ * @property \Carbon\CarbonImmutable $updated_at
+ * @property \Carbon\CarbonImmutable|null $deleted_at
+ * @property bool|null $is_deleted Whether the entity is deleted
  */
 final class TicketRelease extends Model implements IsPartOfParent
 {

@@ -18,6 +18,21 @@ use Override;
  * that marks it a premature closure ("returned after"). This is what makes an
  * automatic state change auditable and reversible, and the data that tells
  * whether configured durations are tuned correctly.
+ *
+ * @property int $id
+ * @property int $ticket_id
+ * @property int|null $closure_policy_id
+ * @property ClosureAction $action
+ * @property string|null $reporting_environment
+ * @property \Carbon\CarbonImmutable $closed_at
+ * @property \Carbon\CarbonImmutable|null $reopened_at
+ * @property int|null $returned_after_seconds
+ * @property int|null $returned_occurrence_id
+ * @property bool $is_premature
+ * @property \Carbon\CarbonImmutable $created_at
+ * @property \Carbon\CarbonImmutable $updated_at
+ * @property \Carbon\CarbonImmutable|null $deleted_at
+ * @property bool|null $is_deleted Whether the entity is deleted
  */
 final class ClosureAudit extends Model
 {

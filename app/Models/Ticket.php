@@ -36,6 +36,25 @@ use Modules\SAO\Models\Pivot\TicketWatcher;
 use Override;
 use Spatie\MediaLibrary\HasMedia as MediaContract;
 
+/**
+ * @property int $id
+ * @property int $project_id
+ * @property int $number
+ * @property string $key
+ * @property int $ticket_type_id
+ * @property int $ticket_status_id
+ * @property TicketPriority $priority
+ * @property string $title
+ * @property string|null $description
+ * @property int|null $reporter_id
+ * @property int|null $assignee_id
+ * @property \Carbon\CarbonImmutable|null $due_at When the ticket is due
+ * @property int $lock_version The optimistic lock version of the ticket
+ * @property \Carbon\CarbonImmutable $created_at
+ * @property \Carbon\CarbonImmutable $updated_at
+ * @property \Carbon\CarbonImmutable|null $deleted_at
+ * @property bool|null $is_deleted Whether the entity is deleted
+ */
 final class Ticket extends Model implements IOptimisticLockableModel, ISearchableModel, MediaContract
 {
     use HasMedia;

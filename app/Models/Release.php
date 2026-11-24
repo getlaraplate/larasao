@@ -20,6 +20,16 @@ use Override;
  * A product version of a project, named as its stable label. It gathers the
  * concrete VCS tags that realize it and the tickets attributed to it, so SAO
  * can answer "which release carries this fix" from data rather than guesses.
+ *
+ * @property int $id
+ * @property int $project_id
+ * @property string $version The stable label the release is named as, e.g. 1.4.0
+ * @property ReleaseStatus $status
+ * @property \Carbon\CarbonImmutable|null $released_at When a stable tag first realized the release
+ * @property \Carbon\CarbonImmutable $created_at
+ * @property \Carbon\CarbonImmutable $updated_at
+ * @property \Carbon\CarbonImmutable|null $deleted_at
+ * @property bool|null $is_deleted Whether the entity is deleted
  */
 final class Release extends Model
 {

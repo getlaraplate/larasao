@@ -21,6 +21,22 @@ use Override;
  * The link between a code artefact — a commit, pull request or tag — and a
  * ticket, recording the source that produced it. It is the raw material of
  * code-to-work correlation (commit → ticket) built in phase 6.
+ *
+ * @property int $id
+ * @property int $ticket_id
+ * @property ChangeRefType $type
+ * @property ChangeRefRelation $relation Whether the change resolves (fixes) or only mentions the ticket
+ * @property string $identifier Commit sha, PR number/key, or tag name
+ * @property string|null $url
+ * @property string|null $source The connection/driver key that produced the reference
+ * @property \Carbon\CarbonImmutable|null $merged_at When a pull_request reference was merged; null otherwise
+ * @property string|null $base_ref A pull request base branch/sha, for comparing its changed files
+ * @property string|null $head_ref A pull request head branch/sha
+ * @property string|null $commit_sha The commit an environment can contain to carry this change: a commit's own sha, a merged pull request's merge commit
+ * @property \Carbon\CarbonImmutable $created_at
+ * @property \Carbon\CarbonImmutable $updated_at
+ * @property \Carbon\CarbonImmutable|null $deleted_at
+ * @property bool|null $is_deleted Whether the entity is deleted
  */
 final class ChangeRef extends Model implements IsPartOfParent
 {

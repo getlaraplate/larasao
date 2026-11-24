@@ -16,6 +16,18 @@ use Modules\SAO\Exceptions\ImmutableKeyPrefixException;
 use Modules\SAO\Models\Pivot\ProjectTicketType;
 use Override;
 
+/**
+ * @property int $id
+ * @property string $name
+ * @property string $key_prefix Immutable once the first ticket number has been allocated
+ * @property string|null $description
+ * @property int $next_ticket_number Allocated under a row lock; gaps are accepted
+ * @property bool $is_active
+ * @property \Carbon\CarbonImmutable $created_at
+ * @property \Carbon\CarbonImmutable $updated_at
+ * @property \Carbon\CarbonImmutable|null $deleted_at
+ * @property bool|null $is_deleted Whether the entity is deleted
+ */
 final class Project extends Model implements IActivatableModel
 {
     use HasActivation {
