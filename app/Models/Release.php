@@ -85,6 +85,14 @@ final class Release extends Model
     }
 
     /**
+     * @return Factory<Release>
+     */
+    protected static function newFactory(): Factory
+    {
+        return ReleaseFactory::new();
+    }
+
+    /**
      * Curated releases only — those a maintainer has adopted. Excludes the
      * `observed` versions auto-recorded from logs or entered by a reporter,
      * which are hidden from version lists by default.
@@ -96,14 +104,6 @@ final class Release extends Model
     protected function curated(Builder $query): Builder
     {
         return $query->where('status', '!=', ReleaseStatus::Observed->value);
-    }
-
-    /**
-     * @return Factory<Release>
-     */
-    protected static function newFactory(): Factory
-    {
-        return ReleaseFactory::new();
     }
 
     /**
