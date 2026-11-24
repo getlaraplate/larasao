@@ -35,6 +35,9 @@ use Override;
  * @property \Carbon\CarbonImmutable $updated_at
  * @property \Carbon\CarbonImmutable|null $deleted_at
  * @property bool|null $is_deleted Whether the entity is deleted
+ * @property array<array-key, mixed>|null $status_map Remote status name → canonical category
+ * @property array<array-key, mixed>|null $priority_map
+ * @property array<array-key, mixed>|null $config Binding-scoped non-secret configuration
  */
 final class ProjectBinding extends Model implements IsPartOfParent
 {

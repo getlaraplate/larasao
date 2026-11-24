@@ -28,6 +28,7 @@ use Override;
  * @property \Carbon\CarbonImmutable $updated_at
  * @property \Carbon\CarbonImmutable|null $deleted_at
  * @property bool|null $is_deleted Whether the entity is deleted
+ * @property array<array-key, mixed> $evidence The paths/commits and rule-specific data behind the suggestion
  */
 final class OwnershipSuggestion extends Model
 {
