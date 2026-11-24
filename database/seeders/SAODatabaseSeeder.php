@@ -16,7 +16,7 @@ class SAODatabaseSeeder extends Seeder
      * {@see SeedReconciler} batches these rows into a single `upsert()`, which requires a uniform
      * column set across the whole batch.
      *
-     * @return array<int, array{name: string, value: mixed, encrypted: bool, choices: ?array<int, mixed>, type: SettingTypeEnum, group_name: string, description: string}>
+     * @return list<array{name: string, value: mixed, encrypted: bool, choices: ?array<int, mixed>, type: SettingTypeEnum, group_name: string, description: string}>
      */
     public static function runtimeSettingDefinitions(): array
     {
