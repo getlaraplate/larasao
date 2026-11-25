@@ -2,6 +2,26 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.6.2] - 2026-11-25
+
+### 🐛 Bug Fixes
+
+- *(phpstan)* RuntimeSettingDefinitions() returns a list
+- *(phpstan)* Type SAO's json columns and ids, clear its backlog
+- *(signals)* Read the recurrence cooldown from a numeric string too
+
+### 📚 Documentation
+
+- *(models)* Every model declares its columns as @property tags
+- *(models)* Declare the json and array columns too
+- *(models)* Declare translated and proxied attributes, and type factory keys
+
+### 🎨 Styling
+
+- *(sao)* Declare the types pest type-coverage was missing
+- *(sao)* The purge chunk receives an Eloquent collection
+- Apply Pint to the models whose columns are declared next
+
 ## [1.6.1] - 2026-11-18
 
 ### 🐛 Bug Fixes

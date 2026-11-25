@@ -2,7 +2,7 @@
   "name": "getlaraplate/larasao",
   "vendor": "getlaraplate",
   "description": "SAO (Simply Another Orchestrator): ticketing that correlates code, errors and work, with issue tracker, VCS and log integrations.",
-  "version": "v1.6.1",
+  "version": "v1.6.2",
   "keywords": [
     "laravel",
     "laraplate",
