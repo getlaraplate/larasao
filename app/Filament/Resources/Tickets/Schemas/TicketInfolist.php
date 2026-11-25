@@ -78,16 +78,17 @@ final class TicketInfolist
         $entries = resolve(TicketTimelineService::class)->for($ticket);
         $authors = User::query()
             ->whereKey($entries->map(static fn (TimelineEntry $entry): ?int => $entry->authorId())->filter()->unique()->all())
-            ->pluck('name', 'id');
+            ->get(['id', 'name'])
+            ->mapWithKeys(static fn (User $user): array => [$user->id => $user->name]);
 
-        return $entries->map(static fn (TimelineEntry $entry): array => [
+        return array_values($entries->map(static fn (TimelineEntry $entry): array => [
             'occurred_at' => $entry->occurredAt()->toDateTimeString(),
             'kind' => $entry->kind(),
             'who' => $entry->authorId() !== null
-                ? (string) ($authors[$entry->authorId()] ?? '#' . $entry->authorId())
+                ? ($authors[$entry->authorId()] ?? '#' . $entry->authorId())
                 : ($entry->sourceKey() ?? 'system'),
             'body' => $entry->body(),
             'fields' => array_keys($entry->changes()),
-        ])->values()->all();
+        ])->all());
     }
 }

@@ -129,8 +129,8 @@ final readonly class InternalIssuesDriver implements DriverInterface, IssuesCapa
     #[Override]
     public function create(BindingContext $context, array $attributes): array
     {
-        $project = Project::findOrFail($context->config['project']);
-        $type = TicketType::findOrFail($context->config['ticket_type']);
+        $project = Project::query()->whereKey($context->config['project'])->firstOrFail();
+        $type = TicketType::query()->whereKey($context->config['ticket_type'])->firstOrFail();
 
         $ticket = $this->creation->open($project, $type, [
             'title' => $attributes['title'] ?? '',
@@ -197,11 +197,11 @@ final readonly class InternalIssuesDriver implements DriverInterface, IssuesCapa
             key: $ticket->key,
             body: $ticket->description,
             remoteStatus: $ticket->status?->category?->value,
-            remotePriority: $ticket->priority?->value,
+            remotePriority: $ticket->priority->value,
             assignee: $ticket->assignee_id !== null ? (string) $ticket->assignee_id : null,
             url: null,
-            createdAt: $ticket->created_at?->toIso8601String(),
-            updatedAt: $ticket->updated_at?->toIso8601String(),
+            createdAt: $ticket->created_at->toIso8601String(),
+            updatedAt: $ticket->updated_at->toIso8601String(),
         );
     }
 }

@@ -39,20 +39,20 @@ final readonly class DeploymentIngestService
         $isNew = ! $deployment->exists;
 
         if ($isNew) {
-            $deployment->project_id = $project->getKey();
-            $deployment->connection_id = $connection?->getKey();
+            $deployment->project_id = $project->id;
+            $deployment->connection_id = $connection?->id;
             $deployment->external_id = $event->externalId;
-            $deployment->started_at = $event->startedAt ?? now();
+            $deployment->started_at = ($event->startedAt ?? now())->toImmutable();
         }
 
-        $deployment->environment_id = $environment?->getKey();
-        $deployment->release_id = $release?->getKey();
+        $deployment->environment_id = $environment?->id;
+        $deployment->release_id = $release?->id;
         $deployment->version = $event->version;
         $deployment->status = $event->status;
         $deployment->meta = $event->meta === [] ? null : $event->meta;
 
         if ($event->status->isTerminal()) {
-            $deployment->finished_at = $event->finishedAt ?? $deployment->finished_at ?? now();
+            $deployment->finished_at = $event->finishedAt?->toImmutable() ?? $deployment->finished_at ?? now()->toImmutable();
         }
 
         $deployment->save();

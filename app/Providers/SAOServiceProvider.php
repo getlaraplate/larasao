@@ -128,7 +128,7 @@ final class SAOServiceProvider extends ModuleServiceProvider
 
             if (config('sao.sync.enabled', true)) {
                 $schedule->command('sao:sync:issues')
-                    ->cron((string) config('sao.sync.cron', '0 * * * *'))
+                    ->cron(config()->string('sao.sync.cron', '0 * * * *'))
                     ->withoutOverlapping();
             }
 
@@ -140,19 +140,19 @@ final class SAOServiceProvider extends ModuleServiceProvider
 
             if (config('sao.health.enabled', false)) {
                 $schedule->command('sao:connection:health')
-                    ->cron((string) config('sao.health.cron', '*/15 * * * *'))
+                    ->cron(config()->string('sao.health.cron', '*/15 * * * *'))
                     ->withoutOverlapping();
             }
 
             if (config('sao.probe.enabled', false)) {
                 $schedule->command('sao:census:probe')
-                    ->cron((string) config('sao.probe.cron', '0 */6 * * *'))
+                    ->cron(config()->string('sao.probe.cron', '0 */6 * * *'))
                     ->withoutOverlapping();
             }
 
             if (config('sao.retention.enabled', false)) {
                 $schedule->command('sao:prune')
-                    ->cron((string) config('sao.retention.cron', '0 3 * * *'))
+                    ->cron(config()->string('sao.retention.cron', '0 3 * * *'))
                     ->withoutOverlapping();
             }
         });

@@ -15,6 +15,7 @@ use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Model;
 use Modules\SAO\Enums\ReleaseTagKind;
+use Override;
 
 /**
  * The concrete VCS tags realizing a release. Edited here rather than as a

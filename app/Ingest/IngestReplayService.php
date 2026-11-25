@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Modules\SAO\Ingest;
 
 use Modules\SAO\Enums\IngestStatus;
+use Modules\SAO\Models\Connection;
 use Modules\SAO\Models\IngestEvent;
 use Modules\SAO\Models\SourceProfile;
 
@@ -41,12 +42,13 @@ final readonly class IngestReplayService
         }
 
         $canonical = $this->normalizer->normalize($profile, $payload);
-        $correlation = $this->ruleset->correlate($canonical, CorrelationScope::forProfile($event->connection, $profile));
+        $connection = $event->getRelationValue('connection');
+        $correlation = $this->ruleset->correlate($canonical, CorrelationScope::forProfile($connection instanceof Connection ? $connection : null, $profile));
 
         return [
             'matches' => true,
             'canonical' => $canonical,
-            'project_id' => $correlation['project']?->getKey(),
+            'project_id' => $correlation['project']?->id,
             'winning_rule' => $correlation['rule'],
             'environment' => $correlation['environment'],
             'would_be_status' => $correlation['project'] === null

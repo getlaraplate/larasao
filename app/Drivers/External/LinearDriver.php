@@ -100,7 +100,7 @@ final readonly class LinearDriver implements DriverInterface, IssuesCapability
         $response = $this->gql($context->connection->credentials, (string) $context->baseUrl(), $query, ['id' => $remoteId]);
         $issue = $response->json('data.issue');
 
-        return is_array($issue) ? $this->normalize($context, $issue)->toArray() : null;
+        return is_array($issue) ? $this->normalize($issue)->toArray() : null;
     }
 
     #[Override]
@@ -118,7 +118,7 @@ final readonly class LinearDriver implements DriverInterface, IssuesCapability
 
         /** @var list<array<string, mixed>> $nodes */
         $nodes = $response->json('data.issues.nodes', []);
-        $items = array_map(fn (array $issue): array => $this->normalize($context, $issue)->toArray(), $nodes);
+        $items = array_map(fn (array $issue): array => $this->normalize($issue)->toArray(), $nodes);
 
         $hasNext = (bool) $response->json('data.issues.pageInfo.hasNextPage', false);
         $endCursor = $response->json('data.issues.pageInfo.endCursor');
@@ -148,7 +148,7 @@ final readonly class LinearDriver implements DriverInterface, IssuesCapability
         /** @var array<string, mixed> $issue */
         $issue = $response->json('data.issueCreate.issue', []);
 
-        return $this->normalize($context, $issue)->toArray();
+        return $this->normalize($issue)->toArray();
     }
 
     /**
@@ -168,7 +168,7 @@ final readonly class LinearDriver implements DriverInterface, IssuesCapability
         /** @var array<string, mixed> $issue */
         $issue = $response->json('data.issueUpdate.issue', []);
 
-        return isset($issue['id']) ? $this->normalize($context, $issue)->toArray() : ['remote_id' => $remoteId];
+        return isset($issue['id']) ? $this->normalize($issue)->toArray() : ['remote_id' => $remoteId];
     }
 
     #[Override]
@@ -212,9 +212,9 @@ final readonly class LinearDriver implements DriverInterface, IssuesCapability
     }
 
     /**
-     * @param  array<string, mixed>  $issue
+     * @param  array<array-key, mixed>  $issue  A decoded Linear issue node.
      */
-    private function normalize(BindingContext $context, array $issue): NormalizedIssue
+    private function normalize(array $issue): NormalizedIssue
     {
         $identifier = self::stringOrNull($issue['identifier']);
         $state = $issue['state'] ?? null;

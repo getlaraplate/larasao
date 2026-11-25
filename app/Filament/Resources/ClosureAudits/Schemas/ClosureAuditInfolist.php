@@ -52,7 +52,7 @@ final class ClosureAuditInfolist
         $labels = [];
 
         foreach ($record->conditions_held as $key => $outcome) {
-            $held = (bool) ($outcome['held'] ?? false);
+            $held = $outcome['held'];
             $labels[] = $key . ' ' . ($held ? '✓' : '✗');
         }
 

@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Modules\SAO\Services;
 
 use Carbon\CarbonInterface;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Modules\SAO\Data\ChangeContext;
 use Modules\SAO\Models\Signal;
@@ -31,7 +30,7 @@ final readonly class SignalRecurrenceCommenter
      */
     public static function sourceKey(Signal $signal): string
     {
-        return 'signal-recurrence:' . $signal->getKey();
+        return 'signal-recurrence:' . $signal->id;
     }
 
     /**
@@ -47,7 +46,7 @@ final readonly class SignalRecurrenceCommenter
 
         $ticket = Ticket::query()->with('status')->find($signal->ticket_id);
 
-        if (! $ticket instanceof Ticket || $ticket->status->category->isTerminal()) {
+        if (! $ticket instanceof Ticket || ($ticket->status?->category->isTerminal() ?? false)) {
             return null;
         }
 
@@ -63,13 +62,14 @@ final readonly class SignalRecurrenceCommenter
         }
 
         $span = SignalOccurrence::query()
-            ->where('signal_id', $signal->getKey())
-            ->where('id', '<=', $occurrence->getKey())
-            ->when(
-                $previous instanceof TicketComment,
-                static fn (Builder $query): Builder => $query->where('created_at', '>', $previous->created_at),
-                static fn (Builder $query): Builder => $query->where('created_at', '>=', $ticket->created_at),
+            ->where('signal_id', $signal->id)
+            ->where('id', '<=', $occurrence->id)
+            ->where(
+                'created_at',
+                $previous instanceof TicketComment ? '>' : '>=',
+                $previous instanceof TicketComment ? $previous->created_at : $ticket->created_at,
             )
+            ->orderBy('occurred_at')
             ->get(['occurred_at', 'environment', 'affected_version']);
 
         if ($span->isEmpty()) {
@@ -88,7 +88,7 @@ final readonly class SignalRecurrenceCommenter
      */
     private function cooldownMinutes(): int
     {
-        return max(1, (int) config('sao.signals.recurrence_comment.cooldown_minutes', 60));
+        return max(1, config()->integer('sao.signals.recurrence_comment.cooldown_minutes', 60));
     }
 
     /**
@@ -105,8 +105,8 @@ final readonly class SignalRecurrenceCommenter
                 $count === 1 ? 'time' : 'times',
                 $sincePreviousComment ? 'the previous recurrence comment' : 'the ticket was created',
             ),
-            'First occurrence in this span: ' . $this->formatted($span->min('occurred_at')),
-            'Last occurrence in this span: ' . $this->formatted($span->max('occurred_at')),
+            'First occurrence in this span: ' . $this->formatted($span->first()?->occurred_at),
+            'Last occurrence in this span: ' . $this->formatted($span->last()?->occurred_at),
             'Environments: ' . $this->distinct($span->pluck('environment')),
             'Versions: ' . $this->distinct($span->pluck('affected_version')),
         ]);

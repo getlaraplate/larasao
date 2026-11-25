@@ -63,7 +63,7 @@ final readonly class FixPresenceService
         $this->fixesOfProject((int) $environment->project_id)
             ->lazyById(self::CHUNK)
             ->each(function (ChangeRef $changeRef) use ($vcs, $environment, $deployedCommit, $settled, &$written): void {
-                if (isset($settled[$changeRef->getKey()])) {
+                if (isset($settled[$changeRef->id])) {
                     return;
                 }
 
@@ -186,14 +186,13 @@ final readonly class FixPresenceService
     private function recordUnknown(array $triple): void
     {
         $now = now();
-        $presence = new FixPresence;
 
         FixPresence::query()->insertOrIgnore([
             ...$triple,
             'contained' => null,
             'checked_at' => $now,
-            $presence->getCreatedAtColumn() => $now,
-            $presence->getUpdatedAtColumn() => $now,
+            FixPresence::CREATED_AT => $now,
+            FixPresence::UPDATED_AT => $now,
         ]);
 
         FixPresence::query()
@@ -225,7 +224,7 @@ final readonly class FixPresenceService
         }
 
         try {
-            $driver = $this->registry->get($binding->remoteConnection->driver_key);
+            $driver = $this->registry->get($binding->liveConnection()->driver_key);
 
             if (! $driver instanceof VcsCapability) {
                 return null;
@@ -264,11 +263,11 @@ final readonly class FixPresenceService
     private function settledChangeRefIds(Environment $environment, string $deployedCommit): array
     {
         return FixPresence::query()
-            ->where('environment_id', $environment->getKey())
+            ->where('environment_id', $environment->id)
             ->where('deployed_commit', $deployedCommit)
             ->whereNotNull('contained')
-            ->pluck('change_ref_id')
-            ->mapWithKeys(static fn (int $id): array => [$id => true])
+            ->get(['change_ref_id'])
+            ->mapWithKeys(static fn (FixPresence $presence): array => [$presence->change_ref_id => true])
             ->all();
     }
 

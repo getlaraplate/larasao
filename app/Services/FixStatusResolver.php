@@ -109,7 +109,7 @@ final class FixStatusResolver
         $notContained = [];
 
         foreach ($running as $environment) {
-            $current = $rows->get($environment->getKey(), collect())
+            $current = $rows->get($environment->id, new Collection)
                 ->filter(static fn (FixPresence $presence): bool => $presence->deployed_commit === $environment->current_commit);
 
             if ($current->contains(static fn (FixPresence $presence): bool => $presence->contained === true)) {

@@ -31,7 +31,7 @@ final class ClosurePoliciesTable
                     TextColumn::make('conditions')
                         ->badge()
                         ->state(static fn (ClosurePolicy $record): array => array_map(
-                            static fn (array $condition): string => (string) ($condition['key'] ?? ''),
+                            static fn (array $condition): string => $condition['key'],
                             $record->conditions,
                         )),
                 );

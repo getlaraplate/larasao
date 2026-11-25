@@ -72,6 +72,10 @@ final class ProbeCensusCommand extends Command
 
         foreach ($bindings as $binding) {
             $project = $binding->project;
+
+            if (! $project instanceof Project) {
+                continue;
+            }
             $environments = $project->environments()
                 ->whereNotNull('base_url')
                 ->where('base_url', '!=', '')
@@ -109,7 +113,7 @@ final class ProbeCensusCommand extends Command
      */
     private function probe(DriverRegistry $registry, ConnectionCredentialResolver $resolver, ProjectBinding $binding, Environment $environment): ProbedVersion
     {
-        $driver = $registry->get($binding->remoteConnection->driver_key);
+        $driver = $registry->get($binding->liveConnection()->driver_key);
 
         if (! $driver instanceof VersionProbeCapability) {
             throw new ProbeException("The driver [{$driver->key()}] cannot probe versions.");

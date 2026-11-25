@@ -107,7 +107,7 @@ final class Environment extends Model
 
     private function queueFixPresenceCheck(): void
     {
-        $id = (int) $this->getKey();
+        $id = $this->id;
 
         $this->getConnection()->afterCommit(static function () use ($id): void {
             dispatch(CheckFixPresenceJob::forEnvironment($id));

@@ -37,7 +37,7 @@ final class SaoTicketEvidenceProjector
             locale: $requestedLocale,
             strategy: $strategy,
             score: $score,
-            revision: $ticket->updated_at?->toIso8601String(),
+            revision: $ticket->updated_at->toIso8601String(),
             truncated: $excerptTruncated || $labelTruncated,
         );
     }

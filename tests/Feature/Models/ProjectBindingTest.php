@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Modules\SAO\Drivers\DriverRegistry;
@@ -81,6 +82,21 @@ test('bindingContext resolves credentials and carries the binding config', funct
         ->and($context->remoteIdentifier)->toBe('proj-1')
         ->and($context->statusMap)->toBe(['Done' => 'resolved'])
         ->and($context->config)->toBe(['project' => 5]);
+});
+
+test('a binding whose connection was deleted refuses to run and names the connection', function (): void {
+    $connection = issuesConnection(['credential' => ['token' => 't']]);
+
+    $binding = ProjectBinding::factory()->create([
+        'project_id' => Project::factory(),
+        'connection_id' => $connection->id,
+        'capability' => Capability::Issues,
+    ]);
+
+    $connection->delete();
+
+    expect(fn (): mixed => $binding->fresh()?->bindingContext(app(ConnectionCredentialResolver::class)))
+        ->toThrow(ModelNotFoundException::class, 'No query results for model [' . Connection::class . '] ' . $connection->id);
 });
 
 test('a binding cannot declare a capability its connection does not expose', function (): void {

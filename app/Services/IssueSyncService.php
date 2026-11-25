@@ -162,7 +162,7 @@ final readonly class IssueSyncService
             return SyncOutcome::Updated;
         }
 
-        $type = TicketType::findOrFail($binding->config['ticket_type']);
+        $type = TicketType::query()->whereKey($binding->config['ticket_type'] ?? null)->firstOrFail();
 
         $ticket = $this->creation->open($binding->project, $type, [
             'title' => $issue['title'] ?? '',
