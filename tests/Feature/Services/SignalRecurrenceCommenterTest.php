@@ -228,3 +228,22 @@ test('reprocessing three hundred old events of one signal posts exactly one comm
         ->and((clone $occurredAt)->first()->occurred_at->equalTo($oldest))->toBeTrue()
         ->and((clone $occurredAt)->where('occurred_at', '>=', now()->subDays(1))->count())->toBe(0);
 });
+
+test('a cooldown stored as a numeric string is read as minutes', function (): void {
+    [$project, , $ticket, $base] = recurrence_linked_signal();
+    config(['sao.signals.recurrence_comment.cooldown_minutes' => '10']);
+    $service = app(SignalIngestService::class);
+
+    $service->ingest($project, recurrence_payload());
+    $service->ingest($project, recurrence_payload());
+
+    $this->travelTo($base->addMinutes(6)->addMinutes(5));
+    $service->ingest($project, recurrence_payload());
+
+    expect(recurrence_comments($ticket))->toHaveCount(1);
+
+    $this->travelTo($base->addMinutes(6)->addMinutes(11));
+    $service->ingest($project, recurrence_payload());
+
+    expect(recurrence_comments($ticket))->toHaveCount(2);
+});
