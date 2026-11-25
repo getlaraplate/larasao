@@ -88,7 +88,9 @@ final readonly class SignalRecurrenceCommenter
      */
     private function cooldownMinutes(): int
     {
-        return max(1, config()->integer('sao.signals.recurrence_comment.cooldown_minutes', 60));
+        $minutes = config('sao.signals.recurrence_comment.cooldown_minutes', 60);
+
+        return max(1, is_numeric($minutes) ? (int) $minutes : 60);
     }
 
     /**
