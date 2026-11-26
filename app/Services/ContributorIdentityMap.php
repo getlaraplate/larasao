@@ -15,6 +15,8 @@ use Modules\SAO\Models\ContributorIdentity;
 final class ContributorIdentityMap
 {
     /**
+     * The provider-specific rows are ordered by a CASE, not by a bare comparison: Db2 cannot order by a predicate.
+     *
      * @return array<string, int>
      */
     public function forProvider(string $provider): array
@@ -25,7 +27,6 @@ final class ContributorIdentityMap
         // by overwriting as we iterate.
         $rows = ContributorIdentity::query()
             ->whereIn('provider', [ContributorIdentity::ANY_PROVIDER, $provider])
-            // A CASE, not a bare comparison: Db2 cannot order by a predicate.
             ->orderByRaw('CASE WHEN provider = ? THEN 1 ELSE 0 END asc', [$provider])
             ->get(['provider', 'identity', 'user_id']);
 

@@ -46,10 +46,11 @@ final readonly class RetentionService
     /**
      * Prune deployments older than the window, keeping the most recent per
      * (project, environment) so the version census stays valid.
+     *
+     * The key inside MAX() goes through the grammar and its alias is no reserved word: `id` is one on Db2.
      */
     public function pruneDeployments(int $days, bool $dryRun): int
     {
-        // The key goes through the grammar and the alias is no reserved word: `id` is one on Db2.
         $latest = Deployment::query();
         $latestIds = $latest
             ->selectRaw('MAX(' . $latest->getGrammar()->wrap($latest->getModel()->getKeyName()) . ') as latest_id')
