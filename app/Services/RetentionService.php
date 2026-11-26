@@ -49,10 +49,12 @@ final readonly class RetentionService
      */
     public function pruneDeployments(int $days, bool $dryRun): int
     {
-        $latestIds = Deployment::query()
-            ->selectRaw('MAX(id) as id')
+        // The key goes through the grammar and the alias is no reserved word: `id` is one on Db2.
+        $latest = Deployment::query();
+        $latestIds = $latest
+            ->selectRaw('MAX(' . $latest->getGrammar()->wrap($latest->getModel()->getKeyName()) . ') as latest_id')
             ->groupBy('project_id', 'environment_id')
-            ->pluck('id')
+            ->pluck('latest_id')
             ->all();
 
         $query = Deployment::query()

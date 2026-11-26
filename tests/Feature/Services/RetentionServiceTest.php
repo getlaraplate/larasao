@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Modules\Core\Tests\Stubs\Database\Db2PretendConnection;
 use Modules\SAO\Models\Deployment;
 use Modules\SAO\Models\Environment;
 use Modules\SAO\Models\IngestEvent;
@@ -82,4 +83,13 @@ test('a recently-closed project inside the grace period is left alone', function
 
     expect($this->retention->pruneClosedProjects(30, dryRun: false))->toBe(0)
         ->and(Signal::query()->where('project_id', $closed->id)->count())->toBe(1);
+});
+
+test('it finds the latest deployment of each pair with the reserved id column quoted on Db2', function (): void {
+    $sql = Db2PretendConnection::capture(function (): void {
+        $this->retention->pruneDeployments(90, dryRun: true);
+    });
+
+    expect($sql[0])->toStartWith('select MAX("ID") as latest_id from sao_deployments')
+        ->and($sql[0])->not->toContain('MAX(id)');
 });

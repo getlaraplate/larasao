@@ -25,7 +25,8 @@ final class ContributorIdentityMap
         // by overwriting as we iterate.
         $rows = ContributorIdentity::query()
             ->whereIn('provider', [ContributorIdentity::ANY_PROVIDER, $provider])
-            ->orderByRaw('(provider = ?) asc', [$provider])
+            // A CASE, not a bare comparison: Db2 cannot order by a predicate.
+            ->orderByRaw('CASE WHEN provider = ? THEN 1 ELSE 0 END asc', [$provider])
             ->get(['provider', 'identity', 'user_id']);
 
         foreach ($rows as $row) {

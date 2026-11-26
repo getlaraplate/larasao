@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Modules\Core\Models\User;
+use Modules\Core\Tests\Stubs\Database\Db2PretendConnection;
 use Modules\SAO\Models\ContributorIdentity;
 use Modules\SAO\Services\ContributorIdentityMap;
 
@@ -41,4 +42,14 @@ test('specific entries for another provider are excluded', function (): void {
     ContributorIdentity::factory()->forProvider('gitlab')->create(['identity' => 'glab', 'user_id' => $gitlabUser->id]);
 
     expect($this->map->forProvider('github'))->toBe([]);
+});
+
+test('the provider-specific rows are ordered last by a CASE, as Db2 cannot order by a predicate', function (): void {
+    $sql = Db2PretendConnection::capture(function (): void {
+        expect($this->map->forProvider('github'))->toBe([]);
+    });
+
+    expect($sql)->toHaveCount(1)
+        ->and($sql[0])->toContain('order by CASE WHEN provider = ? THEN 1 ELSE 0 END asc')
+        ->and($sql[0])->not->toContain('(provider = ?)');
 });
