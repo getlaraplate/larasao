@@ -5,7 +5,7 @@ declare(strict_types=1);
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Modules\SAO\Models\Project;
 
-uses(RefreshDatabase::class);
+uses(RefreshDatabase::class)->group('db2');
 
 test('a project is created with an uppercase key prefix', function (): void {
     $project = Project::factory()->create([
